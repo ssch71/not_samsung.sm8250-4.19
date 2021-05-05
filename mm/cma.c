@@ -465,13 +465,13 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 		return NULL;
 
 	if (!cma || !cma->count || !cma->bitmap)
-		return NULL;
+		goto out;
 
 	pr_debug("%s(cma %p, count %lu, align %d)\n", __func__, (void *)cma,
 		 count, align);
 
 	if (!count)
-		return NULL;
+		goto out;
 
 	trace_cma_alloc_start(count, align);
 
@@ -481,7 +481,7 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 	bitmap_count = cma_bitmap_pages_to_bits(cma, count);
 
 	if (bitmap_count > bitmap_maxno)
-		return NULL;
+		goto out;
 
 	for (;;) {
 		mutex_lock(&cma->lock);
@@ -567,6 +567,12 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 	}
 
 	pr_debug("%s(): returned %p\n", __func__, page);
+out:
+	if (page)
+		count_vm_event(CMA_ALLOC_SUCCESS);
+	else
+		count_vm_event(CMA_ALLOC_FAIL);
+
 	return page;
 }
 EXPORT_SYMBOL_GPL(__cma_alloc);
