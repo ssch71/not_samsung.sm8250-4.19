@@ -42,6 +42,7 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y gcc-aarch64-linux-gnu
+          sudo apt-get install -y gcc-aarch64-linux-gnu lz4
 
       - name: Set Build Start Time
         run: echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
