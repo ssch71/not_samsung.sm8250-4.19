@@ -1,99 +1,53 @@
-SECONDS=0 # builtin bash timer
-
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-# ===== AnyKernel3 =====
-AK3_REPO="https://github.com/skye-tachyon/AnyKernel3"
-AK3_BRANCH="$DEVICE"
-AK3_DIR="$(pwd)/android/AnyKernel3"
-
-ZIPNAME="not-CI-$(date '+%Y%m%d').zip"
-TC_DIR="$(pwd)/tc/clang"
-DEFCONFIG="vendor/kona-perf_defconfig vendor/samsung/kona-sec-common.config vendor/samsung/$DEVICE.config vendor/not/ksu.config"
-
-OUT_DIR="$(pwd)/out"
-BOOT_DIR="$OUT_DIR/arch/arm64/boot"
-DTS_DIR="$BOOT_DIR/dts/vendor/qcom"
-
-if test -z "$(git rev-parse --show-cdup 2>/dev/null)" &&
-   head=$(git rev-parse --verify HEAD 2>/dev/null); then
-    ZIPNAME="${ZIPNAME::-4}-$(echo $head | cut -c1-8)-$DEVICE.zip"
-fi
-
-git submodule update --init --recursive
-
-export PATH="$TC_DIR/bin:$PATH"
-
-if ! [ -d "$TC_DIR" ]; then
-    echo -e "${YELLOW} Clang not found! Cloning to $TC_DIR...${NC}"
-    mkdir -p "$TC_DIR"
-    if ! curl -L https://www.kernel.org/pub/tools/llvm/files/llvm-22.1.7-x86_64.tar.gz \
-        | tar -xz -C "$TC_DIR" --strip-components=1; then
-        echo -e "${RED}Cloning failed! Aborting...${NC}"
+# ===== boot.img 리패키징 (magiskboot) =====
+MAGISKBOOT="$(pwd)/tc/magiskboot"
+if [ ! -x "$MAGISKBOOT" ]; then
+    echo -e "${YELLOW}magiskboot not found! Downloading...${NC}"
+    mkdir -p "$(dirname "$MAGISKBOOT")"
+    if ! curl -L -o "$MAGISKBOOT" "https://github.com/HuskyDG/magiskboot_ci/releases/latest/download/magiskboot"; then
+        echo -e "${RED}magiskboot download failed! Aborting...${NC}"
         exit 1
     fi
+    chmod +x "$MAGISKBOOT"
 fi
 
-mkdir -p out
-echo -e "${YELLOW}building with: $DEFCONFIG${NC}"
-
-make O=out ARCH=arm64 $DEFCONFIG
-make O=out ARCH=arm64 olddefconfig
-
-echo -e "\n${YELLOW}Starting compilation...${NC}\n"
-
-make -j$(nproc --all) O=out ARCH=arm64 \
-    CC=clang LD=ld.lld AS=llvm-as AR=llvm-ar NM=llvm-nm \
-    OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
-    CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-    LLVM=1 LLVM_IAS=1 dtbo.img
-    
-make -j$(nproc --all) O=out ARCH=arm64 \
-    CC=clang LD=ld.lld AS=llvm-as AR=llvm-ar NM=llvm-nm \
-    OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
-    CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-    LLVM=1 LLVM_IAS=1 Image
-    
-if [ -f "$BOOT_DIR/Image" ]; then
-    echo -e "${GREEN}Kernel Image found!${NC}"
-    
-    if [ -d "$DTS_DIR" ]; then
-        echo -e "${BLUE}Generating dtb from $DTS_DIR...${NC}"
-        cat $(find "$DTS_DIR" -type f -name "*.dtb" | sort) > "$BOOT_DIR/kona.dtb"
-        
-        if [ -f "$BOOT_DIR/kona.dtb" ]; then
-            echo -e "${GREEN}dtb generated successfully!${NC}"
-        else
-            echo -e "${RED}Failed to generate kona.dtb! Check if dtbs were compiled.${NC}"
+STOCK_BOOT="$(pwd)/firmware/boot.img"
+if [ ! -f "$STOCK_BOOT" ]; then
+    if [ -n "$STOCK_BOOT_URL" ]; then
+        echo -e "${YELLOW}Downloading stock boot.img from STOCK_BOOT_URL...${NC}"
+        mkdir -p "$(dirname "$STOCK_BOOT")"
+        if ! curl -L "$STOCK_BOOT_URL" -o "$STOCK_BOOT"; then
+            echo -e "${RED}stock boot.img download failed! Aborting...${NC}"
             exit 1
         fi
     else
-        echo -e "${RED}DTS directory not found. Compilation might be incomplete.${NC}"
+        echo -e "${RED}stock boot.img not found at firmware/boot.img and STOCK_BOOT_URL is not set! Aborting...${NC}"
         exit 1
     fi
-else
-    echo -e "\n${RED}Compilation failed! Image not found.${NC}"
+fi
+
+BOOTWORK="$(pwd)/bootwork"
+rm -rf "$BOOTWORK"
+mkdir -p "$BOOTWORK"
+cp "$STOCK_BOOT" "$BOOTWORK/stock_boot.img"
+
+pushd "$BOOTWORK" >/dev/null
+"$MAGISKBOOT" unpack stock_boot.img
+if [ $? -ne 0 ]; then
+    echo -e "${RED}magiskboot unpack failed!${NC}"
     exit 1
 fi
 
-rm -rf AnyKernel3
-echo "[*] Cloning AnyKernel3 for $DEVICE"
-git clone -q -b "$AK3_BRANCH" "$AK3_REPO" AnyKernel3 || exit 1
+cp "$BOOT_DIR/Image" kernel
 
-echo -e "Preparing zip...\n"
+"$MAGISKBOOT" repack stock_boot.img
+if [ ! -f new-boot.img ]; then
+    echo -e "${RED}magiskboot repack failed! new-boot.img not found.${NC}"
+    exit 1
+fi
+mv new-boot.img "boot-$DEVICE.img"
+popd >/dev/null
 
-cp "$BOOT_DIR/dtbo.img" AnyKernel3/dtbo.img
-cp "$BOOT_DIR/Image" AnyKernel3/Image
-cp "$BOOT_DIR/kona.dtb" AnyKernel3/kona.dtb
+cp "$BOOTWORK/boot-$DEVICE.img" "$(pwd)/boot-$DEVICE.img"
+cp "$BOOT_DIR/dtbo.img" "$(pwd)/dtbo-$DEVICE.img"
 
-cd AnyKernel3
-
-zip -r9 "../$ZIPNAME" * -x .git README.md *placeholder
-cd ..
-
-echo -e "\n${GREEN}Completed in $((SECONDS / 60)) minute(s) and $((SECONDS % 60)) second(s)!${NC}"
-echo -e "${GREEN}Zip: $ZIPNAME${NC}"
+echo -e "${GREEN}boot-$DEVICE.img and dtbo-$DEVICE.img ready!${NC}"
