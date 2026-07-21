@@ -14,6 +14,8 @@ on:
         required: true
       TELEGRAM_CHAT_ID:
         required: true
+      STOCK_BOOT_URL:
+        required: false
 
 permissions:
   contents: write
@@ -25,6 +27,7 @@ jobs:
     env:
       DEVICE: ${{ inputs.device }}
       DEVICE_NAME: ${{ inputs.device_name }}
+      STOCK_BOOT_URL: ${{ secrets.STOCK_BOOT_URL }}
 
     steps:
       - name: Check Out
@@ -46,6 +49,7 @@ jobs:
       - name: Run build script
         run: |
           export DEVICE=${{ env.DEVICE }}
+          export STOCK_BOOT_URL=${{ env.STOCK_BOOT_URL }}
           ./build.sh
 
       - name: Set Build End Time
@@ -58,14 +62,34 @@ jobs:
           seconds=$((duration % 60))
           echo "BUILD_DURATION=${minutes}m ${seconds}s" >> $GITHUB_ENV
 
+      - name: Set ZIP File Path
+        run: |
+         zip=$(ls not-CI-*.zip 2>/dev/null | head -n1)
+         if [ -z "$zip" ]; then
+           echo "❌ No ZIP found!"
+           exit 1
+         fi
+         echo "zip_file=$zip" >> $GITHUB_ENV
+
+      - name: Set IMG File Paths
+        run: |
+          boot_img="boot-${DEVICE}.img"
+          dtbo_img="dtbo-${DEVICE}.img"
+          if [ ! -f "$boot_img" ]; then
+            echo "❌ boot.img not found: $boot_img"
+            exit 1
+          fi
+          if [ ! -f "$dtbo_img" ]; then
+            echo "❌ dtbo.img not found: $dtbo_img"
+            exit 1
+          fi
+          echo "boot_img=$boot_img" >> $GITHUB_ENV
+          echo "dtbo_img=$dtbo_img" >> $GITHUB_ENV
+
       - name: Upload to Telegram
         run: |
           gitsha1=$(git rev-parse --short HEAD)
-          zip_file=$(ls not-*.zip 2>/dev/null | head -n 1)
-          if [ -z "$zip_file" ]; then
-            echo "No zip found!"
-            exit 1
-          fi
+          zip_file="${{ env.zip_file }}"
           DEVICE_NAME_ESCAPED=$(echo "$DEVICE_NAME" | sed 's/[][_*()~`>#+=|{}.!-]/\\&/g')
           DEVICE_ESCAPED=$(echo "$DEVICE" | sed 's/[][_*()~`>#+=|{}.!-]/\\&/g')
           printf "| Localversion: `cat out/include/config/kernel.release`
@@ -80,21 +104,11 @@ jobs:
           $buildDetails
           \`\`\`
           * * "
-          file="$zip_file"
-          curl -s -F document=@$file "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
+          curl -s -F document=@$zip_file "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
           -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
           -F "disable_web_page_preview=true" \
           -F "parse_mode=markdownv2" \
           -F caption="$msg"
-
-      - name: Set ZIP File Path
-        run: |
-         zip=$(ls not-CI-*.zip 2>/dev/null | head -n1)
-         if [ -z "$zip" ]; then
-           echo "❌ No ZIP found!"
-           exit 1
-         fi
-         echo "zip_file=$zip" >> $GITHUB_ENV
 
       - name: Set release tag
         run: echo "RELEASE_TAG=${DEVICE}-$(date +'%Y%m%d')" >> $GITHUB_ENV
@@ -117,15 +131,18 @@ jobs:
           [ -z "$SUSFS_VERSION" ] && SUSFS_VERSION="Unknown"
           echo "SUSFS_VERSION=$SUSFS_VERSION" >> $GITHUB_ENV
 
-      - name: Debug ZIP
-        run: ls -lh
+      - name: Debug Output Files
+        run: ls -lh "${{ env.zip_file }}" "${{ env.boot_img }}" "${{ env.dtbo_img }}"
 
       - name: Create Release and Upload ZIP
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: not_kernel ${{ env.KERNEL_VERSION }} for ${{ env.DEVICE_NAME }}
-          files: ${{ env.zip_file }}
+          files: |
+            ${{ env.zip_file }}
+            ${{ env.boot_img }}
+            ${{ env.dtbo_img }}
           body: |
              Clang version: ${{ env.CLANG_VERSION }}
              Build Date: ${{ env.BUILD_DATE }}
@@ -134,6 +151,8 @@ jobs:
              SELinux: Enforcing
              Commit: ${{ env.COMMIT_HASH }}
              Build completed in: ${{ env.BUILD_DURATION }}
-              
+             
+             ---
+             boot.img / dtbo.img 포함됨
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
