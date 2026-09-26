@@ -60,6 +60,7 @@
 #endif
 
 #include "sec_adc.h"
+#include "sb_full_soc.h"
 
 extern char *sec_cable_type[];
 
@@ -717,6 +718,8 @@ struct sec_battery_info {
 	unsigned long expired_time;
 	unsigned long cal_safety_time;
 	int fg_reset;
+	
+	struct sb_full_soc *fs;
 
 	/* 25w ta alert */
 	bool ta_alert_wa;
@@ -791,6 +794,7 @@ extern unsigned int is_boot_recovery(void);
 static inline unsigned int is_boot_recovery(void) { return 0; }
 #endif
 extern void sec_bat_set_misc_event(struct sec_battery_info *battery, unsigned int misc_event_val, unsigned int misc_event_mask);
+extern void sec_bat_set_charging_status(struct sec_battery_info *battery, int status);
 extern void sec_bat_set_tx_event(struct sec_battery_info *battery, unsigned int tx_event_val, unsigned int tx_event_mask);
 extern void sec_bat_set_current_event(struct sec_battery_info *battery, unsigned int current_event_val, unsigned int current_event_mask);
 extern void sec_bat_set_temp_control_test(struct sec_battery_info *battery, bool temp_enable);

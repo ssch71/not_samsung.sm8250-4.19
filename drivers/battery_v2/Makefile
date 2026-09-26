@@ -7,6 +7,7 @@ obj-$(CONFIG_BATTERY_SAMSUNG)	+= sec_battery.o
 endif
 obj-$(CONFIG_BATTERY_SAMSUNG)	+= sec_battery_sysfs.o
 obj-$(CONFIG_BATTERY_SAMSUNG)	+= sec_battery_dt.o
+obj-$(CONFIG_BATTERY_SAMSUNG)	+= sb_full_soc.o
 obj-$(CONFIG_OF)				+= sec_adc.o
 obj-$(CONFIG_MULTI_CHARGING)	+= sec_multi_charger.o
 obj-$(CONFIG_DUAL_BATTERY)	+= sec_dual_battery.o
