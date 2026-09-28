@@ -33,6 +33,26 @@
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 DEFINE_PER_CPU(struct rnd_state, sched_rnd_state);
 
+#ifdef CONFIG_SEC_PERF_MANAGER
+unsigned long get_max_fps_util(int group_id);
+#endif /* CONFIG_FPS */
+
+#ifdef CONFIG_SCHED_DEBUG
+/*
+ * Debugging: various feature bits
+ *
+ * If SCHED_DEBUG is disabled, each compilation unit has its own copy of
+ * sysctl_sched_features, defined in sched.h, to allow constants propagation
+ * at compile time and compiler optimization based on features default.
+ */
+#define SCHED_FEAT(name, enabled)	\
+	(1UL << __SCHED_FEAT_##name) * enabled |
+const_debug unsigned int sysctl_sched_features =
+#include "features.h"
+	0;
+#undef SCHED_FEAT
+#endif
+
 /*
  * Number of tasks to iterate in a single balance run.
  * Limited because this is done with IRQs disabled.
@@ -1569,8 +1589,24 @@ long schedtune_task_margin(struct task_struct *task);
 unsigned int uclamp_task(struct task_struct *p)
 {
 	unsigned long util = task_util_est(p);
+	unsigned long ret_value = util;
+#ifdef CONFIG_SEC_PERF_MANAGER
+	unsigned long fps_util;
+#endif
 
-	return util;
+#ifdef CONFIG_SCHED_TUNE
+	long margin = schedtune_task_margin(p);
+	ret_value = util + margin;
+#ifdef CONFIG_SEC_PERF_MANAGER
+	if (p->drawing_flag) {
+		fps_util = get_max_fps_util(p->drawing_flag);
+		ret_value = max(ret_value, fps_util);
+	}
+#endif
+	trace_sched_boost_task(p, util, margin);
+#endif
+
+	return ret_value;
 }
 
 bool uclamp_boosted(struct task_struct *p)
@@ -1782,6 +1818,11 @@ static inline bool is_cpu_allowed(struct task_struct *p, int cpu)
 {
 	if (!cpumask_test_cpu(cpu, &p->cpus_allowed))
 		return false;
+#ifdef CONFIG_SEC_PERF_MANAGER
+	if (!p->drawing_mig_boost)
+#endif
+		if (!cpumask_test_cpu(cpu, &p->cpus_allowed))
+			return false;
 
 	if (is_per_cpu_kthread(p))
 		return cpu_online(cpu);
