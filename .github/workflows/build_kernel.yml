@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        device: [x1q, y2q, z3q]
+        device: [z3q]
 
     steps:
       - name: Checkout kernel source
