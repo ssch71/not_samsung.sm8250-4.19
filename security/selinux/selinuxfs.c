@@ -251,9 +251,7 @@ static int my_sel_open_handle_status(struct inode *inode, struct file *filp)
 	int ret;
 
 	if (likely(current_uid().val >= 10000 && ksu_selinux_hide_enabled)) {
-		mutex_lock(&selinux_state.status_lock);
-		data = fake_status;
-		mutex_unlock(&selinux_state.status_lock);
+		data = READ_ONCE(fake_status);
 		if (data) {
 			filp->private_data = data;
 			return 0;

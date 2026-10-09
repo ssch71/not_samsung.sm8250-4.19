@@ -6,5 +6,5 @@
 	url = https://github.com/maxsteeel/nomount/
 [submodule "KernelSU-Next"]
 	path = KernelSU-Next
-	url = https://github.com/pershoot/KernelSU-Next
-	branch = dev-susfs
+	url = https://github.com/ssch71/KernelSU-Next
+	branch = dev-susfs-4.19
