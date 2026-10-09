@@ -13,6 +13,11 @@ init_task_work(struct callback_head *twork, task_work_func_t func)
 	twork->func = func;
 }
 
+/* 4.19: task_work_add() takes bool notify; KernelSU-Next expects TWA_RESUME */
+#ifndef TWA_RESUME
+#define TWA_RESUME true
+#endif
+
 int task_work_add(struct task_struct *task, struct callback_head *twork, bool);
 struct callback_head *task_work_cancel(struct task_struct *, task_work_func_t);
 void task_work_run(void);
