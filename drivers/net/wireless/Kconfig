@@ -162,8 +162,5 @@ source "drivers/net/wireless/sec_cnss_utils/Kconfig"
 source "drivers/net/wireless/sec_cnss_genl/Kconfig"
 endif
 
-if NO_QCACLD = n
-source "drivers/net/wireless/qualcomm/qcacld-3.0/Kconfig"
-endif
 
 endif # WLAN
