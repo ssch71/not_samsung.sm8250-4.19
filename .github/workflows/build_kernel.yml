@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        device: [z3q]
+        device: [x1q,y2q,z3q,c1q,c2q,gts7l,gts7lwifi,gts7xl,gts7xlwifi]
 
     steps:
       - name: Checkout kernel source
