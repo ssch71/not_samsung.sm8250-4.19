@@ -32,6 +32,7 @@
 #define SECURE_TOUCH_DISABLED	0
 #endif
 
+#include <linux/fb.h>
 #include "nt36xxx.h"
 
 #define TOUCH_MAX_AREA_NUM		255
