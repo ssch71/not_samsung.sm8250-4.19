@@ -254,7 +254,7 @@ static void arm_backtrace_eabi(int cpu, struct pt_regs *const regs, unsigned int
         return;
 
     while (depth-- && curr) {
-        if (!access_ok(VERIFY_READ, curr, sizeof(struct stack_frame_eabi)) ||
+        if (!access_ok(curr, sizeof(struct stack_frame_eabi)) ||
                 __copy_from_user_inatomic(&bufcurr, curr, sizeof(struct stack_frame_eabi))) {
             return;
         }

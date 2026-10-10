@@ -168,7 +168,7 @@ static ssize_t auxdev_read(struct file *file, char __user *buf, size_t count,
 
 	bytes_pending = min((loff_t)count, AUX_MAX_OFFSET - (*offset));
 
-	if (!access_ok(VERIFY_WRITE, buf, bytes_pending)) {
+	if (!access_ok(buf, bytes_pending)) {
 		res = -EFAULT;
 		goto out;
 	}
@@ -229,7 +229,7 @@ static ssize_t auxdev_write(struct file *file, const char __user *buf,
 
 	bytes_pending = min((loff_t)count, AUX_MAX_OFFSET - *offset);
 
-	if (!access_ok(VERIFY_READ, buf, bytes_pending)) {
+	if (!access_ok(buf, bytes_pending)) {
 		res = -EFAULT;
 		goto out;
 	}

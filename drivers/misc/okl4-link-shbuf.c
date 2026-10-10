@@ -200,7 +200,7 @@ static long link_shbuf_ioctl_irq_clr(struct link_shbuf_data *priv,
 	 * Check validity of the user pointer before clearing the interrupt to avoid
 	 * races involved with having to undo the latter.
 	 */
-	if (!access_ok(VERIFY_WRITE, user_arg, sizeof(*user_arg)))
+	if (!access_ok(user_arg, sizeof(*user_arg)))
 		return -EFAULT;
 
 	/*

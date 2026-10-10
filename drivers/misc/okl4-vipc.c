@@ -196,11 +196,9 @@ static long okl4_vipc_ioctl(struct file *file, unsigned int cmd,
 
 	/* Check user supplied address valid */
 	if (_IOC_DIR(cmd) & _IOC_READ) {
-                status = !access_ok(VERIFY_WRITE,
-			(void __user *)arg, _IOC_SIZE(cmd));
+                status = !access_ok((void __user *)arg, _IOC_SIZE(cmd));
 	} else if (_IOC_DIR(cmd) & _IOC_WRITE) {
-		status =  !access_ok(VERIFY_READ,
-			 (void __user *)arg, _IOC_SIZE(cmd));
+		status =  !access_ok((void __user *)arg, _IOC_SIZE(cmd));
 	}
 	if (status != 0)
 		return -EFAULT;
