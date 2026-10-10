@@ -73,7 +73,8 @@ else
 fi
 
 # ===== Handle DTBO =====
-DTBO_FILES=$(find "$OUT_DIR/arch/arm64/boot/dts/samsung/$DEVICE" -name "*.dtbo")
+DTS_DIR="$DEVICE"; [ "$DEVICE" = gts7lwifi ] && DTS_DIR=gts7l
+DTBO_FILES=$(find "$OUT_DIR/arch/arm64/boot/dts/samsung/$DTS_DIR" -name "*.dtbo")
 if [ -n "$DTBO_FILES" ]; then
     echo -e "${BLUE}Building dtbo.img...${NC}"
     chmod +x "$KERNEL_DIR/tools/mkdtimg"
