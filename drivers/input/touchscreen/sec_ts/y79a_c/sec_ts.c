@@ -11,6 +11,7 @@
  */
 
 #include "sec_ts.h"
+#include <linux/proc_fs.h>
 
 struct sec_ts_data *tsp_info;
 
@@ -754,6 +755,12 @@ static void sec_ts_set_prox_power_off(struct sec_ts_data *ts, u8 data)
 	if (ret < 0)
 		input_err(true, &ts->client->dev, "%s: Failed to write prox_power_off set\n", __func__);
 }
+
+#if !defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
+static void sec_ts_sponge_dump_flush(struct sec_ts_data *ts, int dump_area)
+{
+}
+#endif
 
 #if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
 #include <linux/input/sec_tsp_dumpkey.h>
@@ -2407,7 +2414,9 @@ static int sec_ts_parse_dt(struct i2c_client *client)
 				if (pdata->bringup == 4)
 					pdata->bringup = 3;
 			} else {
-				u32 lcd_id[lcd_id_num];
+				u32 lcd_id[8];
+				if (lcd_id_num > ARRAY_SIZE(lcd_id))
+					lcd_id_num = ARRAY_SIZE(lcd_id);
 
 				of_property_read_u32_array(np, "sec,select_lcdid", lcd_id, lcd_id_num);
 
