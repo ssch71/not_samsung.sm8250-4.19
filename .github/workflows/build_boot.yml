@@ -1,0 +1,139 @@
+name: Build Not SM8250 boot.img
+
+on:
+  workflow_dispatch:
+    inputs:
+      devices:
+        description: 'Devices, comma separated (x1q,y2q,z3q) or "all"'
+        required: true
+        default: 'all'
+      release:
+        description: 'Publish a GitHub pre-release with the images'
+        type: boolean
+        required: true
+        default: false
+      changelog:
+        description: 'Changelog for the release notes (use \n for new lines)'
+        type: string
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - name: Build device matrix
+        id: m
+        env:
+          INPUT_DEVICES: ${{ github.event.inputs.devices }}
+        run: |
+          ALL="x1q y2q z3q"
+          REQ=$(echo "${INPUT_DEVICES:-all}" | tr ',' ' ' | xargs)
+          if [ -z "$REQ" ] || [ "$REQ" = "all" ]; then REQ="$ALL"; fi
+          for d in $REQ; do
+            case " $ALL " in
+              *" $d "*) ;;
+              *) echo "::error::Unknown device: $d"; exit 1 ;;
+            esac
+          done
+          echo "matrix=$(printf '%s\n' $REQ | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        device: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc bison flex libssl-dev \
+            libncurses5-dev libncursesw5-dev \
+            python3 git zip curl jq zstd ccache \
+            gcc-aarch64-linux-gnu \
+            llvm lld
+
+      - name: Set Timezone
+        uses: szenius/set-timezone@v1.2
+        with:
+          timezoneLinux: "Asia/Seoul"
+
+      - name: Set build date
+        run: echo "BUILD_DATE=$(date +%Y-%m-%d_%H-%M)" >> "$GITHUB_ENV"
+
+      - name: Build kernel
+        run: |
+          chmod +x build_sm8250.sh
+          ./build_sm8250.sh "${{ matrix.device }}" "clang-toolchain"
+
+      - name: Build boot.img
+        run: |
+          chmod +x build_boot.sh
+          ./build_boot.sh "${{ matrix.device }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-${{ matrix.device }}
+          path: |
+            not-boot-*.img
+            not-dtbo-*.img
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: ${{ !cancelled() && github.event.inputs.release == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+
+      - name: Download images
+        uses: actions/download-artifact@v4
+        with:
+          pattern: boot-*
+          merge-multiple: true
+          path: release
+
+      - name: Prepare release notes
+        env:
+          INPUT_CHANGELOG: ${{ github.event.inputs.changelog }}
+        run: |
+          echo "RELEASE_TS=$(TZ=Asia/Seoul date +'%Y%m%d-%H%M%S')" >> "$GITHUB_ENV"
+          (cd release && sha256sum *.img > SHA256SUMS.txt)
+          {
+            echo "**Kernel version:** $(make -s kernelversion)  "
+            echo
+            echo "**Kernel source:** [$GITHUB_SHA](https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA)"
+            if [ -n "$INPUT_CHANGELOG" ]; then
+              echo
+              echo "**Changelog:**"
+              echo
+              printf '%b\n' "$INPUT_CHANGELOG"
+            fi
+          } > version.txt
+          cat version.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: boot-${{ env.RELEASE_TS }}
+          name: "Not Kernel boot images ${{ env.RELEASE_TS }}"
+          body_path: version.txt
+          prerelease: true
+          files: |
+            release/*.img
+            release/SHA256SUMS.txt
