@@ -102,12 +102,12 @@ endif
 
 KDIR = /lib/modules/$(shell uname -r)/build
 
-ccflags-y	+= -I$(src)/inc
-ccflags-y	+= -I$(src)/bare_driver/common/inc
-ccflags-y	+= -I$(src)/bare_driver/api/inc
-ccflags-y	+= -I$(src)/bare_driver/dci/inc
-ccflags-y	+= -I$(src)/platform/inc
-ccflags-y	+= -Wall -Werror -Wno-missing-braces
+ccflags-y	+= -I$(srctree)/$(src)/inc
+ccflags-y	+= -I$(srctree)/$(src)/bare_driver/common/inc
+ccflags-y	+= -I$(srctree)/$(src)/bare_driver/api/inc
+ccflags-y	+= -I$(srctree)/$(src)/bare_driver/dci/inc
+ccflags-y	+= -I$(srctree)/$(src)/platform/inc
+ccflags-y	+= -Wall -Wno-missing-braces
 
 ifeq "$(RANGE_SERVICING)" "INTERRUPT"
 ccflags-y += -DVL53L5_INTERRUPT
