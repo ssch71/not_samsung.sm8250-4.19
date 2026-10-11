@@ -270,6 +270,8 @@ static void drop_mountpoint(struct fs_pin *p)
 }
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+static void drop_mountpoint(struct fs_pin *p);
+
 /* A copy of alloc_vfsmnt() but allocates the fake mnt_id for mounts
  * that are unshared by ksu process
  */
@@ -308,6 +310,7 @@ static struct mount *susfs_alloc_unshare_ksu_vfsmnt(const char *name, int old_mn
 		INIT_LIST_HEAD(&mnt->mnt_slave);
 		INIT_HLIST_NODE(&mnt->mnt_mp_list);
 		INIT_LIST_HEAD(&mnt->mnt_umounting);
+                init_fs_pin(&mnt->mnt_umount, drop_mountpoint);
 	}
 	return mnt;
 
@@ -363,6 +366,7 @@ static struct mount *susfs_alloc_non_unshare_ksu_vfsmnt(const char *name)
 		INIT_LIST_HEAD(&mnt->mnt_slave);
 		INIT_HLIST_NODE(&mnt->mnt_mp_list);
 		INIT_LIST_HEAD(&mnt->mnt_umounting);
+                init_fs_pin(&mnt->mnt_umount, drop_mountpoint);
 	}
 	return mnt;
 
