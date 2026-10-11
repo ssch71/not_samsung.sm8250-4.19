@@ -3,7 +3,7 @@
 
 ## AnyKernel setup
 properties() { '
-kernel.string=Kernel for S20 Series (Snapdragon) by skye // tachyon mianhamza @ xda-developers
+kernel.string=Kernel for SAMSUNG SM8250 Series by skye // tachyon mianhamza @ xda-developers
 do.devicecheck=0
 do.modules=0
 do.systemless=1
