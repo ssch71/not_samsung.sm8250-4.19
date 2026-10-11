@@ -3,7 +3,8 @@
 # Run this AFTER ./build_sm8250.sh <device> <toolchain-dir>.
 #
 # Usage: ./build_boot.sh <device>
-# Optional env: BUILD_DATE, MKBOOTIMG, BOOT_CMDLINE, BOOT_OS_VERSION
+# Output: images/<device>/boot.img and images/<device>/dtbo.img
+# Optional env: IMAGES_DIR, MKBOOTIMG, BOOT_CMDLINE, BOOT_OS_VERSION
 set -euo pipefail
 
 DEVICE="${1:?usage: $0 <device>}"
@@ -11,7 +12,7 @@ KERNEL_DIR="$(pwd)"
 OUT_DIR="$KERNEL_DIR/out/$DEVICE"
 BOOT_OUT="$OUT_DIR/arch/arm64/boot"
 DTB_DIR="$BOOT_OUT/dts/vendor/qcom"
-BUILD_DATE="${BUILD_DATE:-$(date +%Y-%m-%d_%H-%M)}"
+IMAGES_DIR="${IMAGES_DIR:-$KERNEL_DIR/images}/$DEVICE"
 
 # ===== Boot image parameters (SM8250 / kona, header v2) =====
 CMDLINE="${BOOT_CMDLINE:-console=null androidboot.hardware=qcom androidboot.memcg=1 lpm_levels.sleep_disabled=1 video=vfb:640x400,bpp=32,memsize=3072000 msm_rtb.filter=0x237 service_locator.enable=1 androidboot.usbcontroller=a600000.dwc3 swiotlb=2048 printk.devkmsg=on firmware_class.path=/vendor/firmware_mnt/image loop.max_part=7}"
@@ -25,8 +26,8 @@ TAGS_OFFSET="0x01e00000"
 BOARD="SRPUB26A012"
 PAGESIZE="4096"
 
-BOOT_IMG="$KERNEL_DIR/not-boot-${DEVICE}-${BUILD_DATE}.img"
-DTBO_IMG="$KERNEL_DIR/not-dtbo-${DEVICE}-${BUILD_DATE}.img"
+BOOT_IMG="$IMAGES_DIR/boot.img"
+DTBO_IMG="$IMAGES_DIR/dtbo.img"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -73,7 +74,8 @@ if [ -z "${MKBOOTIMG:-}" ]; then
 fi
 
 # ===== Build boot.img =====
-echo "Building $(basename "$BOOT_IMG") (ramdisk: $(basename "$RAMDISK"))"
+mkdir -p "$IMAGES_DIR"
+echo "Building $BOOT_IMG (ramdisk: $(basename "$RAMDISK"))"
 python3 "$MKBOOTIMG" \
     --header_version 2 \
     --kernel "$KERNEL_IMAGE" \
@@ -102,4 +104,4 @@ fi
 
 ls -l "$BOOT_IMG" "$DTBO_IMG"
 sha256sum "$BOOT_IMG" "$DTBO_IMG"
-echo "Done: $(basename "$BOOT_IMG"), $(basename "$DTBO_IMG")"
+echo "Done: $IMAGES_DIR/{boot.img,dtbo.img}"

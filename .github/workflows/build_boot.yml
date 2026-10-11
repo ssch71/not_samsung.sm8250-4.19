@@ -8,7 +8,7 @@ on:
         required: true
         default: 'all'
       release:
-        description: 'Publish a GitHub pre-release with the images'
+        description: 'Publish one GitHub pre-release per device (boot.img + dtbo.img)'
         type: boolean
         required: true
         default: false
@@ -69,9 +69,6 @@ jobs:
         with:
           timezoneLinux: "Asia/Seoul"
 
-      - name: Set build date
-        run: echo "BUILD_DATE=$(date +%Y-%m-%d_%H-%M)" >> "$GITHUB_ENV"
-
       - name: Build kernel
         run: |
           chmod +x build_sm8250.sh
@@ -81,39 +78,28 @@ jobs:
         run: |
           chmod +x build_boot.sh
           ./build_boot.sh "${{ matrix.device }}"
+          (cd "images/${{ matrix.device }}" && sha256sum boot.img dtbo.img > SHA256SUMS.txt)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: boot-${{ matrix.device }}
           path: |
-            not-boot-*.img
-            not-dtbo-*.img
+            images/${{ matrix.device }}/boot.img
+            images/${{ matrix.device }}/dtbo.img
+            images/${{ matrix.device }}/SHA256SUMS.txt
           if-no-files-found: error
 
-  release:
-    needs: build
-    if: ${{ !cancelled() && github.event.inputs.release == 'true' }}
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout kernel source
-        uses: actions/checkout@v4
-
-      - name: Download images
-        uses: actions/download-artifact@v4
-        with:
-          pattern: boot-*
-          merge-multiple: true
-          path: release
-
       - name: Prepare release notes
+        if: ${{ github.event.inputs.release == 'true' }}
         env:
           INPUT_CHANGELOG: ${{ github.event.inputs.changelog }}
         run: |
           echo "RELEASE_TS=$(TZ=Asia/Seoul date +'%Y%m%d-%H%M%S')" >> "$GITHUB_ENV"
-          (cd release && sha256sum *.img > SHA256SUMS.txt)
+          KVER=$(cat "out/${{ matrix.device }}/include/config/kernel.release" 2>/dev/null || make -s kernelversion)
           {
-            echo "**Kernel version:** $(make -s kernelversion)  "
+            echo "**Device:** ${{ matrix.device }}  "
+            echo "**Kernel version:** $KVER  "
             echo
             echo "**Kernel source:** [$GITHUB_SHA](https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA)"
             if [ -n "$INPUT_CHANGELOG" ]; then
@@ -126,14 +112,16 @@ jobs:
           cat version.txt
 
       - name: Publish release
+        if: ${{ github.event.inputs.release == 'true' }}
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: boot-${{ env.RELEASE_TS }}
-          name: "Not Kernel boot images ${{ env.RELEASE_TS }}"
+          tag_name: boot-${{ matrix.device }}-${{ env.RELEASE_TS }}
+          name: "Not Kernel ${{ matrix.device }} boot images ${{ env.RELEASE_TS }}"
           body_path: version.txt
           prerelease: true
           files: |
-            release/*.img
-            release/SHA256SUMS.txt
+            images/${{ matrix.device }}/boot.img
+            images/${{ matrix.device }}/dtbo.img
+            images/${{ matrix.device }}/SHA256SUMS.txt
