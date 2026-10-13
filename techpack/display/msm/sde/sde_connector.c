@@ -99,6 +99,12 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 	if (!bl_lvl && brightness)
 		bl_lvl = 1;
 
+	pr_info("[bl-dbg] update_status: brightness=%d bl_lvl=%d max=%d/%d allow=%d power=%d state=0x%x\n",
+			brightness, bl_lvl,
+			display->panel->bl_config.bl_max_level,
+			display->panel->bl_config.brightness_max_level,
+			c_conn->allow_bl_update, bd->props.power, bd->props.state);
+
 	if (!c_conn->allow_bl_update) {
 		c_conn->unset_bl_level = bl_lvl;
 		return 0;
