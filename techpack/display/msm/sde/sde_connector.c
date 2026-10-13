@@ -92,6 +92,20 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 	if (brightness > display->panel->bl_config.bl_max_level)
 		brightness = display->panel->bl_config.bl_max_level;
 
+	/*
+	 * PAC panels use a candela map keyed by (UI level * 100), e.g. 25500
+	 * for UI level 255. Userspace (lights HAL) writes the plain UI level
+	 * (0..~486), so scale it here, otherwise every level falls in the first
+	 * rows of the table and the panel stays at ~3 nits.
+	 */
+	{
+		struct samsung_display_driver_data *ss_vdd = display->panel->panel_private;
+
+		if (ss_vdd && ss_vdd->br_info.common_br.pac &&
+				brightness > 0 && brightness <= 1000)
+			brightness *= 100;
+	}
+
 	/* map UI brightness into driver backlight level with rounding */
 	bl_lvl = mult_frac(brightness, display->panel->bl_config.bl_max_level,
 			display->panel->bl_config.brightness_max_level);
