@@ -6693,6 +6693,25 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 
 		/* generate single tx packet */
 		ret = ss_single_transmission_packet(brightness_cmds);
+		{
+			char dbgbuf[400];
+			int di, dl = 0, dj, dn;
+			pr_info("[bl-dbg3] lvl=%d smartdim=%d acl=%d siop=%d\n", vdd->br_info.common_br.bl_level,
+				vdd->br_info.smart_dimming_loaded_dsi, vdd->br_info.acl_status, vdd->siop_status);
+			for (di = 0; di < brightness_cmds->count; di++) {
+				dn = brightness_cmds->cmds[di].msg.tx_len;
+				dl += scnprintf(dbgbuf + dl, sizeof(dbgbuf) - dl, "[%d]", dn);
+				for (dj = 0; dj < dn && dj < 4 && dl < (int)sizeof(dbgbuf) - 8; dj++)
+					dl += scnprintf(dbgbuf + dl, sizeof(dbgbuf) - dl, "%02x", ((u8 *)brightness_cmds->cmds[di].msg.tx_buf)[dj]);
+				dl += scnprintf(dbgbuf + dl, sizeof(dbgbuf) - dl, " ");
+				if (dl > (int)sizeof(dbgbuf) - 40) {
+					pr_info("[bl-dbg3] pk %s\n", dbgbuf);
+					dl = 0;
+				}
+			}
+			if (dl)
+				pr_info("[bl-dbg3] pk %s\n", dbgbuf);
+		}
 		pr_info("[bl-dbg2] ss_brightness_dcs: single_tx ret=%d cnt=%d first=0x%02x\n", ret, brightness_cmds->count, brightness_cmds->cmds ? brightness_cmds->cmds[0].msg.tx_buf ? ((u8 *)brightness_cmds->cmds[0].msg.tx_buf)[0] : 0xff : 0xfe);
 
 		/* sending tx cmds */
