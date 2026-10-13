@@ -6684,6 +6684,8 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 		cmd_cnt > 0 ? vdd->display_status_dsi.hbm_mode = false : false;
 	}
 
+	pr_info("[bl-dbg2] ss_brightness_dcs: cmd_cnt=%d\n", cmd_cnt);
+
 	if (cmd_cnt) {
 		/* setting tx cmds cmt */
 		brightness_cmds = ss_get_cmds(vdd, TX_BRIGHT_CTRL);
@@ -6691,6 +6693,7 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 
 		/* generate single tx packet */
 		ret = ss_single_transmission_packet(brightness_cmds);
+		pr_info("[bl-dbg2] ss_brightness_dcs: single_tx ret=%d cnt=%d first=0x%02x\n", ret, brightness_cmds->count, brightness_cmds->cmds ? brightness_cmds->cmds[0].msg.tx_buf ? ((u8 *)brightness_cmds->cmds[0].msg.tx_buf)[0] : 0xff : 0xfe);
 
 		/* sending tx cmds */
 		if (ret) {
