@@ -6512,9 +6512,6 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 	}
 #endif
 
-	pr_info("[bl-dbg] ss_brightness_dcs: level=%d origin=%d cur_mode=%d\n",
-			level, backlight_origin, panel->cur_mode ? 1 : 0);
-
 	/* FC2 change: set panle mode in SurfaceFlinger initialization, instead of kenrel booting... */
 	if (!panel->cur_mode) {
 		LCD_ERR("err: no panel mode yet...\n");
@@ -6579,7 +6576,7 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 
 				LCD_INFO("[FINGER_MASK]BACKLIGHT_NORMAL save backup_acl = %d, backup_level = %d, vdd->br_info.common_br.bl_level=%d\n",
 					backup_acl, backup_bl_level, vdd->br_info.common_br.bl_level);
-				{ pr_info("[bl-dbg] ss_brightness_dcs: skip at line %d\n", __LINE__); goto skip_bl_update; }
+				goto skip_bl_update;
 			}
 		}
 
@@ -6616,17 +6613,17 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 
 	/* check the lcd id for DISPLAY_1 or DISPLAY_2 */
 	if (!ss_panel_attached(vdd->ndx))
-		{ pr_info("[bl-dbg] ss_brightness_dcs: skip at line %d\n", __LINE__); goto skip_bl_update; }
+		goto skip_bl_update;
 
 	if (vdd->grayspot) {
 		LCD_ERR("grayspot on.. %d \n", vdd->grayspot);
-		{ pr_info("[bl-dbg] ss_brightness_dcs: skip at line %d\n", __LINE__); goto skip_bl_update; }
+		goto skip_bl_update;
 	}
 
 	if (vdd->br_info.flash_gamma_support &&
 		!vdd->br_info.flash_gamma_init_done) {
 		LCD_ERR("flash_gamme not ready\n");
-		{ pr_info("[bl-dbg] ss_brightness_dcs: skip at line %d\n", __LINE__); goto skip_bl_update; }
+		goto skip_bl_update;
 	}
 
 	if (vdd->brightdot_state) {
@@ -6636,7 +6633,7 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 		 * allow brightness update in both brightdot test off case
 		 */
 		LCD_INFO("brightdot test on(%d), skip bl update\n", vdd->brightdot_state);
-		{ pr_info("[bl-dbg] ss_brightness_dcs: skip at line %d\n", __LINE__); goto skip_bl_update; }
+		goto skip_bl_update;
 	}
 
 	if (vdd->dtsi_data.panel_lpm_enable && is_new_lpm_version(vdd)) {
@@ -6647,7 +6644,7 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 
 			if (vdd->panel_func.samsung_set_lpm_brightness)
 				vdd->panel_func.samsung_set_lpm_brightness(vdd);
-			{ pr_info("[bl-dbg] ss_brightness_dcs: skip at line %d\n", __LINE__); goto skip_bl_update; }
+			goto skip_bl_update;
 		}
 	}
 
@@ -6660,21 +6657,18 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 				vdd->panel_lpm.ver);
 
 		LCD_ERR("ver: %d, skip brightness setting to prevent false ESD detection\n", vdd->panel_lpm.ver);
-		{ pr_info("[bl-dbg] ss_brightness_dcs: skip at line %d\n", __LINE__); goto skip_bl_update; }
+		goto skip_bl_update;
 	}
 
 	if (vdd->dtsi_data.hmt_enabled && vdd->br_info.hmt_stat.hmt_on) {
 		LCD_ERR("HMT is on. do not set normal brightness..(%d)\n", level);
-		{ pr_info("[bl-dbg] ss_brightness_dcs: skip at line %d\n", __LINE__); goto skip_bl_update; }
+		goto skip_bl_update;
 	}
 
 	if (ss_is_seamless_mode(vdd)) {
 		LCD_ERR("splash is not done..\n");
-		{ pr_info("[bl-dbg] ss_brightness_dcs: skip at line %d\n", __LINE__); goto skip_bl_update; }
+		goto skip_bl_update;
 	}
-
-	pr_info("[bl-dbg] ss_brightness_dcs: sending bl_level=%d hbm=%d\n",
-			vdd->br_info.common_br.bl_level, is_hbm_level(vdd));
 
 	if (is_hbm_level(vdd) && !vdd->dtsi_data.tft_common_support) {
 		cmd_cnt = ss_hbm_brightness_packet_set(vdd);
@@ -6684,8 +6678,6 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 		cmd_cnt > 0 ? vdd->display_status_dsi.hbm_mode = false : false;
 	}
 
-	pr_info("[bl-dbg2] ss_brightness_dcs: cmd_cnt=%d\n", cmd_cnt);
-
 	if (cmd_cnt) {
 		/* setting tx cmds cmt */
 		brightness_cmds = ss_get_cmds(vdd, TX_BRIGHT_CTRL);
@@ -6693,26 +6685,6 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 
 		/* generate single tx packet */
 		ret = ss_single_transmission_packet(brightness_cmds);
-		{
-			char dbgbuf[400];
-			int di, dl = 0, dj, dn;
-			pr_info("[bl-dbg3] lvl=%d smartdim=%d acl=%d siop=%d\n", vdd->br_info.common_br.bl_level,
-				vdd->br_info.smart_dimming_loaded_dsi, vdd->br_info.acl_status, vdd->siop_status);
-			for (di = 0; di < brightness_cmds->count; di++) {
-				dn = brightness_cmds->cmds[di].msg.tx_len;
-				dl += scnprintf(dbgbuf + dl, sizeof(dbgbuf) - dl, "[%d]", dn);
-				for (dj = 0; dj < dn && dj < 4 && dl < (int)sizeof(dbgbuf) - 8; dj++)
-					dl += scnprintf(dbgbuf + dl, sizeof(dbgbuf) - dl, "%02x", ((u8 *)brightness_cmds->cmds[di].msg.tx_buf)[dj]);
-				dl += scnprintf(dbgbuf + dl, sizeof(dbgbuf) - dl, " ");
-				if (dl > (int)sizeof(dbgbuf) - 40) {
-					pr_info("[bl-dbg3] pk %s\n", dbgbuf);
-					dl = 0;
-				}
-			}
-			if (dl)
-				pr_info("[bl-dbg3] pk %s\n", dbgbuf);
-		}
-		pr_info("[bl-dbg2] ss_brightness_dcs: single_tx ret=%d cnt=%d first=0x%02x\n", ret, brightness_cmds->count, brightness_cmds->cmds ? brightness_cmds->cmds[0].msg.tx_buf ? ((u8 *)brightness_cmds->cmds[0].msg.tx_buf)[0] : 0xff : 0xfe);
 
 		/* sending tx cmds */
 		if (ret) {
