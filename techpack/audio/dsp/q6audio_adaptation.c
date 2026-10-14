@@ -783,6 +783,18 @@ static int sec_audio_sb_rx_vol_put(struct snd_kcontrol *kcontrol,
 	int ret = 0;
 	int port_id, copp_idx;
 
+	/*
+	 * The userspace audio HAL writes 0 here when a deep-buffer (media)
+	 * stream is started on the speaker. Sending that to the Sound Booster
+	 * module mutes the whole speaker path, while the other usecases never
+	 * touch this control and play at the module default gain. Treat 0
+	 * as leave-the-module-default instead of muting.
+	 */
+	if (ucontrol->value.integer.value[0] == 0) {
+		pr_info("%s: ignore sound booster volume 0\n", __func__);
+		return 0;
+	}
+
 	port_id = afe_port.spk_rx_port;
 	ret = q6audio_get_copp_idx_from_port_id(port_id, SB_VOLUME, &copp_idx);
 	if (ret) {
