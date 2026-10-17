@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: [x1q,y2q,z3q,c1q,c2q,gts7l,gts7xl,gts7lwifi,gts7xlwifi]
+        device: [x1q,y2q,z3q,c1q,c2q,r8q,gts7l,gts7xl,gts7lwifi,gts7xlwifi]
 
     steps:
       - name: Checkout kernel source

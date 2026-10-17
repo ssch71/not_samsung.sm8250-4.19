@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       devices:
-        description: 'Devices, comma separated (x1q,y2q,z3q,c1q,c2q) or "all"'
+        description: 'Devices, comma separated (x1q,y2q,z3q,c1q,c2q,r8q) or "all"'
         required: true
         default: 'all'
       release:
