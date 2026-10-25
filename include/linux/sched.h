@@ -707,8 +707,6 @@ struct wake_q_node {
 };
 
 struct task_struct {
-struct task_struct *simple_lmk_next;
-struct task_struct *simple_lmk_next;
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/*
 	 * For reasons of header soup (see current_thread_info()), this
