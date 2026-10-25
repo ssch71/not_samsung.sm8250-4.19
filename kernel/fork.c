@@ -1,4 +1,5 @@
 #include <linux/simple_lmk.h>
+#include <linux/simple_lmk.h>
 /*
  *  linux/kernel/fork.c
  *
@@ -1104,6 +1105,8 @@ static inline void __mmput(struct mm_struct *mm)
 		module_put(mm->binfmt->module);
 	lru_gen_del_mm(mm);
 	mmdrop(mm);
+if (IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
+simple_lmk_mm_freed(mm);
 if (IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
 simple_lmk_mm_freed(mm);
 }

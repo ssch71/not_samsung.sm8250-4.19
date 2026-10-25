@@ -1,4 +1,5 @@
 #include <linux/simple_lmk.h>
+#include <linux/simple_lmk.h>
 /*
  *  linux/mm/page_alloc.c
  *
@@ -4899,6 +4900,9 @@ retry:
 		no_progress_loops = 0;
 		goto retry;
 	}
+
+if (IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
+simple_lmk_reclaim();
 
 if (IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
 simple_lmk_reclaim();
