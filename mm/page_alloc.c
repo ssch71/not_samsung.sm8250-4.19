@@ -2348,7 +2348,7 @@ static bool boost_eligible(struct zone *z)
 	free_pages = zone_page_state(z, NR_FREE_PAGES) -
 			zone_page_state(z, NR_FREE_CMA_PAGES);
 	threshold = high_wmark + (2 * mult_frac(high_wmark,
-					watermark_boost_factor, 0));
+					watermark_boost_factor, 10000));
 
 	/*
 	 * Don't boost watermark If we are already low on memory where the
@@ -2372,7 +2372,7 @@ static inline void boost_watermark(struct zone *zone)
 		return;
 
 	max_boost = mult_frac(zone->_watermark[WMARK_HIGH],
-			watermark_boost_factor, 0);
+			watermark_boost_factor, 10000);
 
 	/*
 	 * high watermark may be uninitialised if fragmentation occurs
