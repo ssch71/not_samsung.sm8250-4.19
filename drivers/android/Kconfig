@@ -98,3 +98,13 @@ config ANDROID_SIMPLE_LMK
 	help
 	  A simple low memory killer that replaces the standard LMK.
 
+
+config ANDROID_SIMPLE_LMK_MINFREE
+	int "Minimum free memory for Simple LMK (MB)"
+	depends on ANDROID_SIMPLE_LMK
+	default 16
+
+config ANDROID_SIMPLE_LMK_TIMEOUT_MSEC
+	int "Timeout for Simple LMK reclaim (ms)"
+	depends on ANDROID_SIMPLE_LMK
+	default 100
