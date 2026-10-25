@@ -71,3 +71,9 @@ help
   A simple low memory killer that replaces the standard LMK.
   It kills the largest, least-important processes when memory
   is low to free memory as quickly as possible.
+
+config ANDROID_SIMPLE_LMK
+	bool "Simple Android Low Memory Killer"
+	depends on ANDROID
+	help
+	  A simple low memory killer that replaces the standard LMK.
