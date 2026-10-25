@@ -993,7 +993,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 	policy->governor_data = sg_policy;
 	sg_policy->tunables = tunables;
 
-	tunables->rate_limit_us = 1000;
+	tunables->rate_limit_us = 500;
 	if (policy->cpu == 0)
 		tunables->response_time_ms = 4;
 	else if (policy->cpu == 4)

@@ -334,7 +334,6 @@ int user_min_free_kbytes = 32768;
 int watermark_boost_factor __read_mostly;
 #else
 /* Set watermark_boost_factor 0 by default(disable) */
-int watermark_boost_factor __read_mostly;
 #endif
 int watermark_scale_factor = 10;
 
@@ -2348,7 +2347,7 @@ static bool boost_eligible(struct zone *z)
 	free_pages = zone_page_state(z, NR_FREE_PAGES) -
 			zone_page_state(z, NR_FREE_CMA_PAGES);
 	threshold = high_wmark + (2 * mult_frac(high_wmark,
-					watermark_boost_factor, 10000));
+					watermark_boost_factor, 0));
 
 	/*
 	 * Don't boost watermark If we are already low on memory where the
@@ -2372,7 +2371,7 @@ static inline void boost_watermark(struct zone *zone)
 		return;
 
 	max_boost = mult_frac(zone->_watermark[WMARK_HIGH],
-			watermark_boost_factor, 10000);
+			watermark_boost_factor, 0);
 
 	/*
 	 * high watermark may be uninitialised if fragmentation occurs
