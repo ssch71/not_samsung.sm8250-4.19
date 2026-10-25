@@ -334,6 +334,7 @@ int user_min_free_kbytes = 32768;
 int watermark_boost_factor __read_mostly;
 #else
 /* Set watermark_boost_factor 0 by default(disable) */
+int watermark_boost_factor __read_mostly;
 #endif
 int watermark_scale_factor = 10;
 
