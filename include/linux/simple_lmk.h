@@ -8,6 +8,7 @@
 struct mm_struct;
 
 #ifdef CONFIG_ANDROID_SIMPLE_LMK
+void simple_lmk_reclaim(void);
 void simple_lmk_mm_freed(struct mm_struct *mm);
 #else
 static inline void simple_lmk_mm_freed(struct mm_struct *mm)

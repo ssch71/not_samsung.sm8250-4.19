@@ -1,5 +1,4 @@
 #include <linux/simple_lmk.h>
-#include <linux/simple_lmk.h>
 /*
  *  linux/mm/page_alloc.c
  *
