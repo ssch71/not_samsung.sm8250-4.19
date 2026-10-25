@@ -342,3 +342,14 @@ static const struct kernel_param_ops simple_lmk_init_ops = {
 #undef MODULE_PARAM_PREFIX
 #define MODULE_PARAM_PREFIX "lowmemorykiller."
 module_param_cb(minfree, &simple_lmk_init_ops, NULL, 0200);
+
+
+void simple_lmk_reclaim(void)
+{
+	if (!READ_ONCE(simple_lmk_ready))
+		return;
+
+	wake_up_interruptible(&oom_waitq);
+	wait_for_completion_timeout(&reclaim_done, msecs_to_jiffies(100));
+}
+EXPORT_SYMBOL(simple_lmk_reclaim);
