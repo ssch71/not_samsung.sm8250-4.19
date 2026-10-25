@@ -1223,12 +1223,6 @@ static inline void uclamp_rq_reinc_id(struct rq *rq, struct task_struct *p,
 		rq->uclamp_flags &= ~UCLAMP_FLAG_IDLE;
 }
 
-	 * active tasks on rq.
-	 */
-	if (clamp_id == UCLAMP_MAX && (rq->uclamp_flags & UCLAMP_FLAG_IDLE))
-		rq->uclamp_flags &= ~UCLAMP_FLAG_IDLE;
-}
-
 static inline void
 uclamp_update_active(struct task_struct *p)
 {

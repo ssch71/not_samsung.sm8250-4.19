@@ -4901,7 +4901,8 @@ retry:
 	}
 
 if (IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
-simple_lmk_reclaim();
+
+if (IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
 
 if (IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
 simple_lmk_reclaim();

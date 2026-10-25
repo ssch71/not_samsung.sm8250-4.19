@@ -1106,7 +1106,7 @@ static inline void __mmput(struct mm_struct *mm)
 	lru_gen_del_mm(mm);
 	mmdrop(mm);
 if (IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
-simple_lmk_mm_freed(mm);
+if (IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
 if (IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
 simple_lmk_mm_freed(mm);
 }
