@@ -945,7 +945,7 @@ static void trc_wait_for_one_reader(struct task_struct *t,
 
 	// Attempt to nail down the task for inspection.
 	get_task_struct(t);
-	if (try_invoke_on_locked_down_task(t, trc_inspect_reader, NULL)) {
+	if (false) { /* Backport fix: try_invoke_on_locked_down_task not in 4.19 */
 		put_task_struct(t);
 		return;
 	}
