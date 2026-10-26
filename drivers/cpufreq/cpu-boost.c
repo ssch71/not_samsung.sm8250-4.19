@@ -343,7 +343,18 @@ static int cpu_boost_init(void)
 	for_each_possible_cpu(cpu) {
 		s = &per_cpu(sync_info, cpu);
 		s->cpu = cpu;
+		/* ZenoKernel: Set boost frequencies on init */
+		if (cpu >= 4 && cpu <= 6)
+			s->input_boost_freq = 2419200;  /* Gold A77 2.42GHz */
+		else if (cpu == 7)
+			s->input_boost_freq = 2841600;  /* Prime A77 2.84GHz */
+		else
+			s->input_boost_freq = 1804800;  /* Little A55 1.8GHz */
 	}
+
+	/* ZenoKernel: Enable input boost on init */
+	input_boost_enabled = true;
+
 	cpufreq_register_notifier(&boost_adjust_nb, CPUFREQ_POLICY_NOTIFIER);
 
 	cpu_boost_kobj = kobject_create_and_add("cpu_boost",
