@@ -5515,7 +5515,7 @@ int kgsl_of_property_read_ddrtype(struct device_node *node, const char *base,
 int kgsl_device_platform_probe(struct kgsl_device *device)
 {
 	int status = -EINVAL;
-	struct sched_param param = { .sched_priority = 16 };
+	struct sched_param param = { .sched_priority = 6 };
 
 	status = _register_device(device);
 	if (status)
