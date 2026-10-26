@@ -918,16 +918,13 @@ static void rcu_preempt_check_blocked_tasks(struct rcu_node *rnp)
  */
 static void rcu_flavor_sched_clock_irq(int user)
 {
-	if (user || rcu_is_cpu_rrupt_from_idle() ||
-	     (IS_ENABLED(CONFIG_PREEMPT_COUNT) &&
-	      (preempt_count() == HARDIRQ_OFFSET))) {
+	if (user || rcu_is_cpu_rrupt_from_idle()) {
 
 		/*
 		 * Get here if this CPU took its interrupt from user
-		 * mode, from the idle loop without this being a nested
-		 * interrupt, or while not holding the task preempt count
-		 * (with PREEMPT_COUNT=y). In this case, the CPU is in a
-		 * quiescent state, so note it.
+		 * mode or from the idle loop, and if this is not a
+		 * nested interrupt.  In this case, the CPU is in
+		 * a quiescent state, so note it.
 		 *
 		 * No memory barrier is required here because rcu_qs()
 		 * references only CPU-local variables that other CPUs
@@ -2460,7 +2457,7 @@ static void rcu_spawn_one_nocb_kthread(int cpu)
 	/* If we didn't spawn the GP kthread first, reorganize! */
 	rdp_gp = rdp->nocb_gp_rdp;
 	if (!rdp_gp->nocb_gp_kthread) {
-		t = kthread_run(rcu_nocb_gp_kthread, rdp_gp,
+		t = kthread_run_perf_critical(cpu_lp_mask, rcu_nocb_gp_kthread, rdp_gp,
 				"rcuog/%d", rdp_gp->cpu);
 		if (WARN_ONCE(IS_ERR(t), "%s: Could not start rcuo GP kthread, OOM is now expected behavior\n", __func__))
 			return;
@@ -2468,7 +2465,7 @@ static void rcu_spawn_one_nocb_kthread(int cpu)
 	}
 
 	/* Spawn the kthread for this CPU. */
-	t = kthread_run(rcu_nocb_cb_kthread, rdp,
+	t = kthread_run_perf_critical(cpu_lp_mask, rcu_nocb_cb_kthread, rdp,
 			"rcuo%c/%d", rcu_state.abbr, cpu);
 	if (WARN_ONCE(IS_ERR(t), "%s: Could not start rcuo CB kthread, OOM is now expected behavior\n", __func__))
 		return;

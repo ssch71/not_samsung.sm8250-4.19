@@ -3,6 +3,8 @@
 # and is generally not a function of system call inputs.
 KCOV_INSTRUMENT := n
 
+ccflags-y += -O3
+
 ifeq ($(CONFIG_KCSAN),y)
 KBUILD_CFLAGS += -g -fno-omit-frame-pointer
 endif

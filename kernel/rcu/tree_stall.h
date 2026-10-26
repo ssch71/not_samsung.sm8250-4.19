@@ -113,14 +113,17 @@ static void panic_on_rcu_stall(void)
 }
 
 /**
- * rcu_cpu_stall_reset - restart stall-warning timeout for current grace period
+ * rcu_cpu_stall_reset - prevent further stall warnings in current grace period
+ *
+ * Set the stall-warning timeout way off into the future, thus preventing
+ * any RCU CPU stall-warning messages from appearing in the current set of
+ * RCU grace periods.
  *
  * The caller must disable hard irqs.
  */
 void rcu_cpu_stall_reset(void)
 {
-	WRITE_ONCE(rcu_state.jiffies_stall,
-		   jiffies + rcu_jiffies_till_stall_check());
+	WRITE_ONCE(rcu_state.jiffies_stall, jiffies + ULONG_MAX / 2);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -234,16 +237,16 @@ struct rcu_stall_chk_rdr {
  * Report out the state of a not-running task that is stalling the
  * current RCU grace period.
  */
-static int check_slow_task(struct task_struct *t, void *arg)
+static bool check_slow_task(struct task_struct *t, void *arg)
 {
 	struct rcu_stall_chk_rdr *rscrp = arg;
 
 	if (task_curr(t))
-		return -EBUSY; // It is running, so decline to inspect it.
+		return false; // It is running, so decline to inspect it.
 	rscrp->nesting = t->rcu_read_lock_nesting;
 	rscrp->rs = t->rcu_read_unlock_special;
 	rscrp->on_blkd_list = !list_empty(&t->rcu_node_entry);
-	return 0;
+	return true;
 }
 
 /*
@@ -277,7 +280,7 @@ static int rcu_print_task_stall(struct rcu_node *rnp, unsigned long flags)
 	raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
 	while (i) {
 		t = ts[--i];
-		if (task_call_func(t, check_slow_task, &rscr))
+		if (!try_invoke_on_locked_down_task(t, check_slow_task, &rscr))
 			pr_cont(" P%d", t->pid);
 		else
 			pr_cont(" P%d/%d:%c%c%c%c",
@@ -592,7 +595,6 @@ static void print_cpu_stall(unsigned long gps)
 
 static void check_cpu_stall(struct rcu_data *rdp)
 {
-	bool didstall = false;
 	unsigned long gs1;
 	unsigned long gs2;
 	unsigned long gps;
@@ -638,7 +640,7 @@ static void check_cpu_stall(struct rcu_data *rdp)
 	    ULONG_CMP_GE(gps, js))
 		return; /* No stall or GP completed since entering function. */
 	rnp = rdp->mynode;
-	jn = jiffies + ULONG_MAX / 2;
+	jn = jiffies + 3 * rcu_jiffies_till_stall_check() + 3;
 	if (rcu_gp_in_progress() &&
 	    (READ_ONCE(rnp->qsmask) & rdp->grpmask) &&
 	    cmpxchg(&rcu_state.jiffies_stall, js, jn) == js) {
@@ -655,7 +657,6 @@ static void check_cpu_stall(struct rcu_data *rdp)
 		print_cpu_stall(gps);
 		if (READ_ONCE(rcu_cpu_stall_ftrace_dump))
 			rcu_ftrace_dump(DUMP_ALL);
-		didstall = true;
 
 	} else if (rcu_gp_in_progress() &&
 		   ULONG_CMP_GE(j, js + RCU_STALL_RAT_DELAY) &&
@@ -673,11 +674,6 @@ static void check_cpu_stall(struct rcu_data *rdp)
 		print_other_cpu_stall(gs2, gps);
 		if (READ_ONCE(rcu_cpu_stall_ftrace_dump))
 			rcu_ftrace_dump(DUMP_ALL);
-		didstall = true;
-	}
-	if (didstall && READ_ONCE(rcu_state.jiffies_stall) == jn) {
-		jn = jiffies + 3 * rcu_jiffies_till_stall_check() + 3;
-		WRITE_ONCE(rcu_state.jiffies_stall, jn);
 	}
 }
 
