@@ -623,6 +623,9 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 		return 0;
 	}
 
+        unsigned int refresh_rate = dsi_panel_get_refresh_rate();
+        unsigned int safe_rate = min(max(refresh_rate, 60U), 120U);
+        unsigned int ceiling_dynamic = 960000 / safe_rate;
 	level = devfreq_get_freq_level(devfreq, stats->current_frequency);
 	if (level < 0) {
 		pr_err(TAG "bad freq %ld\n", stats->current_frequency);
@@ -634,16 +637,14 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 	 * increase frequency.  Otherwise run the normal algorithm.
 	 */
 	if (!priv->disable_busy_time_burst &&
-			priv->bin.busy_time > CEILING) {
+			priv->bin.busy_time > ceiling_dynamic) {
 		val = -1 * level;
 	} else {
-		unsigned int refresh_rate = dsi_panel_get_refresh_rate();
 
 		scm_data[0] = level;
 		scm_data[1] = priv->bin.total_time;
 		/* ZenoKernel: Sultan Alsawaf HFR fix (ratio exato refresh_rate/60) */
 		if (refresh_rate > 60) {
-			unsigned int safe_rate = min(refresh_rate, 120U);
 			scm_data[2] = priv->bin.busy_time * safe_rate / 60;
 		} else {
 			scm_data[2] = priv->bin.busy_time;
