@@ -51,7 +51,14 @@ static bool input_boost_enabled;
 
 static unsigned int input_boost_ms = 500;
 show_one(input_boost_ms);
-store_one(input_boost_ms);
+static ssize_t store_input_boost_ms(struct kobject *kobj,
+                                    struct kobj_attribute *attr,
+                                    const char *buf, size_t count)
+{
+        /* ZenoKernel: Bloqueia a sobrescrita do Android (forca 500ms) */
+        pr_debug("cpu-boost: external write to input_boost_ms blocked\n");
+        return count;
+}
 cpu_boost_attr_rw(input_boost_ms);
 
 static unsigned int sched_boost_on_input;
