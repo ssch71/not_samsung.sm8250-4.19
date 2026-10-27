@@ -1634,6 +1634,16 @@ config PRINTK
 	  very difficult to diagnose system problems, saying N here is
 	  strongly discouraged.
 
+config DEVKMSG_USERSPACE
+	bool "Allow userspace to write to /dev/kmsg (debug)"
+	depends on PRINTK
+	default n
+	help
+	  Samsung kernels drop every userspace write to /dev/kmsg, so init,
+	  ueventd and early services never show up in dmesg or last_kmsg.
+	  Say Y to let those messages through without ratelimiting. This is
+	  meant for debugging boot loops only.
+
 config PRINTK_NMI
 	def_bool y
 	depends on PRINTK

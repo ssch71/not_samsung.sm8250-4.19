@@ -26,6 +26,11 @@ DEFCONFIG="vendor/kona-perf_defconfig \
            vendor/samsung/${DEVICE}.config \
            vendor/not/ksu.config \
            vendor/not/localversion.config"
+
+# NOT_DEBUG=1: let init/userspace logs reach dmesg and last_kmsg
+if [ "${NOT_DEBUG:-0}" = 1 ]; then
+    DEFCONFIG="$DEFCONFIG vendor/not/debug.config"
+fi
            
 git submodule update --init --recursive
 
@@ -98,7 +103,7 @@ cp "$KERNEL_DIR/$OUT_DIR/arch/arm64/boot/Image.gz-dtb" Image.gz-dtb
 sed -i "s/^device\.name1=.*/device.name1=${DEVICE}/" anykernel.sh
 
 BUILD_DATE=$(date +"%Y-%m-%d_%H-%M")
-ZIP_NAME="not-kernel-${DEVICE}-${BUILD_DATE}.zip"
+ZIP_NAME="not-kernel-${DEVICE}-${BUILD_DATE}$([ "${NOT_DEBUG:-0}" = 1 ] && echo -debug).zip"
 zip -r "../${ZIP_NAME}" * -x .git README.md *placeholder
 
 cd "$KERNEL_DIR"

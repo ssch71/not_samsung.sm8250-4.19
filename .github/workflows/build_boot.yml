@@ -16,6 +16,11 @@ on:
         description: 'Changelog for the release notes (use \n for new lines)'
         type: string
         required: false
+      debug:
+        description: 'Debug kernel: keep init/userspace logs in dmesg and last_kmsg'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -31,7 +36,7 @@ jobs:
         env:
           INPUT_DEVICES: ${{ github.event.inputs.devices }}
         run: |
-          ALL="x1q y2q z3q c1q c2q, r8q"
+          ALL="x1q y2q z3q c1q c2q r8q"
           REQ=$(echo "${INPUT_DEVICES:-all}" | tr ',' ' ' | xargs)
           if [ -z "$REQ" ] || [ "$REQ" = "all" ]; then REQ="$ALL"; fi
           for d in $REQ; do
@@ -70,6 +75,8 @@ jobs:
           timezoneLinux: "Asia/Seoul"
 
       - name: Build kernel
+        env:
+          NOT_DEBUG: ${{ github.event.inputs.debug == 'true' && '1' || '0' }}
         run: |
           chmod +x build_sm8250.sh
           ./build_sm8250.sh "${{ matrix.device }}" "clang-toolchain"
@@ -83,8 +90,9 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: boot-${{ matrix.device }}
+          name: boot-${{ matrix.device }}${{ github.event.inputs.debug == 'true' && '-debug' || '' }}
           path: |
+            not-kernel-*.zip
             images/${{ matrix.device }}/boot.img
             images/${{ matrix.device }}/dtbo.img
             images/${{ matrix.device }}/SHA256SUMS.txt

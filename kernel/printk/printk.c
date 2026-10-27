@@ -855,8 +855,10 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 	size_t len = iov_iter_count(from);
 	ssize_t ret = len;
 
+#ifndef CONFIG_DEVKMSG_USERSPACE
 	/* Don't allow userspace to write to /dev/kmesg */
 	return len;
+#endif
 
 	if (!user || len > LOG_LINE_MAX)
 		return -EINVAL;
@@ -866,14 +868,14 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 		return len;
 
 	/* Ratelimit when not explicitly enabled. */
-	if (!(devkmsg_log & DEVKMSG_LOG_MASK_ON)) {
+	if (!IS_ENABLED(CONFIG_DEVKMSG_USERSPACE) &&
+	    !(devkmsg_log & DEVKMSG_LOG_MASK_ON)) {
 		if (!___ratelimit(&user->rs, current->comm))
 			return ret;
 	}
 
 	buf[len] = '\0';
 	if (!copy_from_iter_full(buf, len, from)) {
-		kfree(buf);
 		return -EFAULT;
 	}
 
