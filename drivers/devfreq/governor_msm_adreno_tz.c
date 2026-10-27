@@ -641,8 +641,10 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 
 		scm_data[0] = level;
 		scm_data[1] = priv->bin.total_time;
+		/* ZenoKernel: Sultan Alsawaf HFR fix (ratio exato refresh_rate/60) */
 		if (refresh_rate > 60) {
-			scm_data[2] = priv->bin.busy_time + (priv->bin.busy_time >> 1); // 50%
+			unsigned int safe_rate = min(refresh_rate, 120U);
+			scm_data[2] = priv->bin.busy_time * safe_rate / 60;
 		} else {
 			scm_data[2] = priv->bin.busy_time;
 		}
