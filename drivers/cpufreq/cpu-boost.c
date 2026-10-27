@@ -224,14 +224,7 @@ static void do_input_boost(struct work_struct *work)
 	/* Update policies for all online CPUs */
 	update_policy_online();
 
-	/* Enable scheduler boost to migrate tasks to big cluster */
-	if (sched_boost_on_input > 0) {
-		ret = sched_set_boost(sched_boost_on_input);
-		if (ret)
-			pr_err("cpu-boost: sched boost enable failed\n");
-		else
-			sched_boost_active = true;
-	}
+	/* ZenoKernel: SchedTune is a stub in this kernel (PELT). Removing useless call. */
 
 	queue_delayed_work(cpu_boost_wq, &input_boost_rem,
 					msecs_to_jiffies(input_boost_ms));
@@ -349,7 +342,7 @@ static int cpu_boost_init(void)
 		else if (cpu == 7)
 			s->input_boost_freq = 2841600;  /* Prime A77 2.84GHz */
 		else
-			s->input_boost_freq = 1804800;  /* Little A55 1.8GHz */
+			s->input_boost_freq = 0;  /* ZenoKernel: 0 = sem boost nos Little Cores (economia ~85% sem perda de perf) */
 	}
 
 	/* ZenoKernel: Enable input boost on init */
