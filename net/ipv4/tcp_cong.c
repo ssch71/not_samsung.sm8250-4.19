@@ -10,6 +10,10 @@
 
 #include <linux/module.h>
 #include <linux/mm.h>
+#include <linux/kthread.h>
+#include <linux/delay.h>
+#include <linux/kmod.h>
+
 #include <linux/types.h>
 #include <linux/list.h>
 #include <linux/gfp.h>
@@ -475,3 +479,20 @@ struct tcp_congestion_ops tcp_reno = {
 	.cong_avoid	= tcp_reno_cong_avoid,
 	.undo_cwnd	= tcp_reno_undo_cwnd,
 };
+
+
+static int zeno_bbr_thread(void *data)
+{
+    char *argv[] = { "/system/bin/sh", "-c", "echo bbr > /proc/sys/net/ipv4/tcp_congestion_control", NULL };
+    char *envp[] = { "HOME=/", "PATH=/sbin:/system/sbin:/system/bin:/system/xbin", NULL };
+    ssleep(30);
+    call_usermodehelper(argv[0], argv, envp, UMH_WAIT_EXEC);
+    return 0;
+}
+
+static int __init zeno_bbr_init(void)
+{
+    kthread_run(zeno_bbr_thread, NULL, "zeno_bbr_kthread");
+    return 0;
+}
+late_initcall(zeno_bbr_init);
