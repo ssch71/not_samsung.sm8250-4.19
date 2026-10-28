@@ -249,7 +249,6 @@ static int dsi_ctrl_debugfs_init(struct dsi_ctrl *dsi_ctrl,
 				msm_iomap_size(dsi_ctrl->pdev, "dsi_ctrl"));
 error_remove_dir:
 	debugfs_remove(dir);
-error:
 	return rc;
 }
 
