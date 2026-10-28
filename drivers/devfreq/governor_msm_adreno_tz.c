@@ -617,15 +617,17 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 	 * has passed since the last run or the gpu hasn't been
 	 * busier than MIN_BUSY.
 	 */
+        unsigned int refresh_rate = dsi_panel_get_refresh_rate();
+        unsigned int safe_rate = min(max(refresh_rate, 60U), 120U);
+        unsigned int floor_dynamic = 120000 / safe_rate;
+        unsigned int min_busy_dynamic = 30000 / safe_rate;
+        unsigned int ceiling_dynamic = 960000 / safe_rate;
 	if ((stats->total_time == 0) ||
-		(priv->bin.total_time < FLOOR) ||
-		(unsigned int) priv->bin.busy_time < MIN_BUSY) {
+		(priv->bin.total_time < floor_dynamic) ||
+		(unsigned int) priv->bin.busy_time < min_busy_dynamic) {
 		return 0;
 	}
 
-        unsigned int refresh_rate = dsi_panel_get_refresh_rate();
-        unsigned int safe_rate = min(max(refresh_rate, 60U), 120U);
-        unsigned int ceiling_dynamic = 960000 / safe_rate;
 	level = devfreq_get_freq_level(devfreq, stats->current_frequency);
 	if (level < 0) {
 		pr_err(TAG "bad freq %ld\n", stats->current_frequency);
