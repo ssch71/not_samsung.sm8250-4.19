@@ -160,7 +160,7 @@ static int boost_adjust_notify(struct notifier_block *nb, unsigned long val,
 			 cpu, policy->min);
 		pr_debug("CPU%u boost min: %u kHz\n", cpu, ib_min);
 
-		cpufreq_verify_within_limits(policy, ib_min, UINT_MAX);
+		cpufreq_verify_within_limits(policy, ib_min, ib_min);
 
 		pr_debug("CPU%u policy min after boost: %u kHz\n",
 			 cpu, policy->min);
