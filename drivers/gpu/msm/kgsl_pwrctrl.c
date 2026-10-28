@@ -16,6 +16,7 @@
 #include "kgsl_device.h"
 #include "kgsl_pwrscale.h"
 #include "kgsl_trace.h"
+#include <drm/drm_refresh_rate.h>
 
 #define KGSL_PWRFLAGS_POWER_ON 0
 #define KGSL_PWRFLAGS_CLK_ON   1
@@ -2414,6 +2415,12 @@ void kgsl_pwrctrl_close(struct kgsl_device *device)
  * handler or the idle timer. It attempts to transition to a clocks
  * off state if the active_cnt is 0 and the hardware is idle.
  */
+static unsigned long kgsl_pwrctrl_idle_timeout(void)
+{
+        unsigned int refresh_rate = dsi_panel_get_refresh_rate();
+        unsigned int safe_rate = min(max(refresh_rate, 60U), 120U);
+        return msecs_to_jiffies(6000 / safe_rate);
+}
 void kgsl_idle_check(struct work_struct *work)
 {
 	struct kgsl_device *device = container_of(work, struct kgsl_device,
@@ -2465,7 +2472,7 @@ done:
 		if (device->state == KGSL_STATE_ACTIVE)
 			mod_timer(&device->idle_timer,
 					jiffies +
-					device->pwrctrl.interval_timeout);
+					kgsl_pwrctrl_idle_timeout());
 	}
 	kgsl_pwrscale_update(device);
 	mutex_unlock(&device->mutex);
@@ -2678,7 +2685,7 @@ static int _wake(struct kgsl_device *device)
 		/* All settings for power level transitions are complete*/
 		pwr->previous_pwrlevel = pwr->active_pwrlevel;
 		mod_timer(&device->idle_timer, jiffies +
-				device->pwrctrl.interval_timeout);
+				kgsl_pwrctrl_idle_timeout());
 		break;
 	case KGSL_STATE_AWARE:
 		kgsl_pwrctrl_clk_set_options(device, true);
@@ -2686,7 +2693,7 @@ static int _wake(struct kgsl_device *device)
 		kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);
 		kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_ON);
 		mod_timer(&device->idle_timer, jiffies +
-				device->pwrctrl.interval_timeout);
+				kgsl_pwrctrl_idle_timeout());
 		break;
 	default:
 		dev_warn(device->dev, "unhandled state %s\n",
@@ -3067,7 +3074,7 @@ void kgsl_active_count_put(struct kgsl_device *device)
 		}
 
 		mod_timer(&device->idle_timer,
-			jiffies + device->pwrctrl.interval_timeout);
+			jiffies + kgsl_pwrctrl_idle_timeout());
 	}
 
 	trace_kgsl_active_count(device,
