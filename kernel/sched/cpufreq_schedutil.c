@@ -160,7 +160,6 @@ static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
 		return false;
 
 	if (unlikely(READ_ONCE(sg_policy->limits_changed))) {
-		WRITE_ONCE(sg_policy->limits_changed, false);
 		sg_policy->need_freq_update = true;
 
 		/*
@@ -282,9 +281,10 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	else
 		freq = map_util_freq(util, freq, max);
 
-	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
+	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update && !sg_policy->limits_changed)
 		return sg_policy->next_freq;
 
+	sg_policy->limits_changed = false;
 	sg_policy->cached_raw_freq = freq;
 	l_freq = cpufreq_driver_resolve_freq(policy, freq);
 	idx = cpufreq_frequency_table_target(policy, freq, CPUFREQ_RELATION_H);
