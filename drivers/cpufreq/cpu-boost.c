@@ -61,7 +61,7 @@ static ssize_t store_input_boost_ms(struct kobject *kobj,
 }
 cpu_boost_attr_rw(input_boost_ms);
 
-static unsigned int sched_boost_on_input;
+static unsigned int sched_boost_on_input = 1;
 show_one(sched_boost_on_input);
 store_one(sched_boost_on_input);
 cpu_boost_attr_rw(sched_boost_on_input);
