@@ -45,6 +45,7 @@ CFLAGS_cfi.o = $(DISABLE_CFI_CLANG)
 CFLAGS_cfi.o = $(DISABLE_CFI_CLANG)
 
 obj-y += sched/
+obj-y += zeno_power_tweaks.o
 obj-y += locking/
 obj-y += power/
 obj-y += printk/
