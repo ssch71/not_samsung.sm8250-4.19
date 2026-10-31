@@ -421,7 +421,7 @@
 		"g_wow_data_inactivity_timeout", \
 		1, \
 		255, \
-		50, \
+		10, \
 		CFG_VALUE_OR_DEFAULT, \
 		"Data activity timeout in wow mode")
 /*
