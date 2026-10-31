@@ -27,6 +27,7 @@ enum {
 
 struct boost_drv {
 	struct delayed_work input_unboost;
+	struct delayed_work unboost_watchdog;
 	struct delayed_work max_unboost;
 	struct notifier_block cpu_notif;
 	struct notifier_block msm_drm_notif;
@@ -37,6 +38,7 @@ struct boost_drv {
 
 static void input_unboost_worker(struct work_struct *work);
 static void max_unboost_worker(struct work_struct *work);
+static void unboost_watchdog_worker(struct work_struct *work);
 
 static struct boost_drv boost_drv_g __read_mostly = {
 	.input_unboost = __DELAYED_WORK_INITIALIZER(boost_drv_g.input_unboost,
@@ -155,6 +157,27 @@ static void max_unboost_worker(struct work_struct *work)
 	wake_up(&b->boost_waitq);
 }
 
+static void unboost_watchdog_worker(struct work_struct *work)
+{
+	struct boost_drv *b = container_of(to_delayed_work(work),
+		typeof(*b), unboost_watchdog);
+	unsigned int cpu;
+
+	if (!test_bit(INPUT_BOOST, &b->state) &&
+	    !test_bit(MAX_BOOST, &b->state) &&
+	    !test_bit(SCREEN_OFF, &b->state)) {
+		get_online_cpus();
+		cpu = cpumask_first_and(cpu_lp_mask, cpu_online_mask);
+		if (cpu < nr_cpu_ids) cpufreq_update_policy(cpu);
+		cpu = cpumask_first_and(cpu_perf_mask, cpu_online_mask);
+		if (cpu < nr_cpu_ids) cpufreq_update_policy(cpu);
+		cpu = cpumask_first_and(cpu_prime_mask, cpu_online_mask);
+		if (cpu < nr_cpu_ids) cpufreq_update_policy(cpu);
+		put_online_cpus();
+	}
+	schedule_delayed_work(&b->unboost_watchdog, msecs_to_jiffies(500));
+}
+
 static int cpu_boost_thread(void *data)
 {
 	static const struct sched_param sched_max_rt_prio = {
@@ -208,10 +231,13 @@ static int cpu_notifier_cb(struct notifier_block *nb, unsigned long action,
 	 * Boost to policy->max if the boost frequency is higher. When
 	 * unboosting, set policy->min to the absolute min freq for the CPU.
 	 */
-	if (test_bit(INPUT_BOOST, &b->state))
+	if (test_bit(INPUT_BOOST, &b->state)) {
 		policy->min = get_input_boost_freq(policy);
-	else
+		cpufreq_verify_within_limits(policy, policy->min, policy->min);
+	} else {
 		policy->min = policy->cpuinfo.min_freq;
+		policy->max = policy->cpuinfo.max_freq;
+	}
 
 	return NOTIFY_OK;
 }
@@ -353,6 +379,9 @@ static int __init cpu_event_boost_init(void)
 		pr_err("Failed to start CPU boost thread, err: %d\n", ret);
 		goto unregister_fb_notif;
 	}
+
+	INIT_DELAYED_WORK(&b->unboost_watchdog, unboost_watchdog_worker);
+	schedule_delayed_work(&b->unboost_watchdog, msecs_to_jiffies(500));
 
 	return 0;
 
