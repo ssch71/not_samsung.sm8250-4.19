@@ -233,7 +233,7 @@ static int cpu_notifier_cb(struct notifier_block *nb, unsigned long action,
 	 */
 	if (test_bit(INPUT_BOOST, &b->state)) {
 		policy->min = get_input_boost_freq(policy);
-		cpufreq_verify_within_limits(policy, policy->min, policy->min);
+		cpufreq_verify_within_limits(policy, policy->min, policy->cpuinfo.max_freq);
 	} else {
 		policy->min = policy->cpuinfo.min_freq;
 		policy->max = policy->cpuinfo.max_freq;
