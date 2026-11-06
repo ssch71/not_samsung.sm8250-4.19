@@ -60,7 +60,9 @@ int hashtab_insert(struct hashtab *h, void *key, void *datum)
 	if (cur && (h->keycmp(h, key, cur->key) == 0))
 		return -EEXIST;
 
-	newnode = kmem_cache_zalloc(hashtab_node_cachep, GFP_KERNEL);
+	/* GFP_ATOMIC under KernelSU's policy_rwlock write side (MinsOS I-79) */
+	newnode = kmem_cache_zalloc(hashtab_node_cachep,
+				    preemptible() ? GFP_KERNEL : GFP_ATOMIC);
 	if (!newnode)
 		return -ENOMEM;
 	newnode->key = key;

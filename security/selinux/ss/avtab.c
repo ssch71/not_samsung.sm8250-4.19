@@ -19,6 +19,7 @@
 
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/preempt.h>
 #include <linux/errno.h>
 #include "avtab.h"
 #include "policydb.h"
@@ -40,13 +41,22 @@ avtab_insert_node(struct avtab *h, int hvalue,
 {
 	struct avtab_node *newnode;
 	struct avtab_extended_perms *xperms;
-	newnode = kmem_cache_zalloc(avtab_node_cachep, GFP_KERNEL);
+	/*
+	 * KernelSU inserts rules into the live policydb while holding
+	 * policy_rwlock for writing with interrupts off, where sleeping would
+	 * leave every security_compute_av() reader spinning (MinsOS I-79).
+	 * Policy load calls this from plain process context and keeps
+	 * GFP_KERNEL.
+	 */
+	gfp_t gfp = preemptible() ? GFP_KERNEL : GFP_ATOMIC;
+
+	newnode = kmem_cache_zalloc(avtab_node_cachep, gfp);
 	if (newnode == NULL)
 		return NULL;
 	newnode->key = *key;
 
 	if (key->specified & AVTAB_XPERMS) {
-		xperms = kmem_cache_zalloc(avtab_xperms_cachep, GFP_KERNEL);
+		xperms = kmem_cache_zalloc(avtab_xperms_cachep, gfp);
 		if (xperms == NULL) {
 			kmem_cache_free(avtab_node_cachep, newnode);
 			return NULL;
@@ -63,7 +73,7 @@ avtab_insert_node(struct avtab *h, int hvalue,
 	} else {
 		newnode->next = flex_array_get_ptr(h->htable, hvalue);
 		if (flex_array_put_ptr(h->htable, hvalue, newnode,
-				       GFP_KERNEL|__GFP_ZERO)) {
+				       gfp | __GFP_ZERO)) {
 			kmem_cache_free(avtab_node_cachep, newnode);
 			return NULL;
 		}
@@ -297,8 +307,10 @@ int avtab_alloc(struct avtab *h, u32 nrules)
 		nslot = MAX_AVTAB_HASH_BUCKETS;
 	mask = nslot - 1;
 
+	/* KernelSU builds a small table here under policy_rwlock, see above */
 	h->htable = flex_array_alloc(sizeof(struct avtab_node *), nslot,
-				     GFP_KERNEL | __GFP_ZERO);
+				     (preemptible() ? GFP_KERNEL : GFP_ATOMIC) |
+				     __GFP_ZERO);
 	if (!h->htable)
 		return -ENOMEM;
 
