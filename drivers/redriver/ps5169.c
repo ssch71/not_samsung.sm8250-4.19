@@ -430,11 +430,11 @@ static int ps5169_probe(struct i2c_client *i2c,
 
 	mutex_init(&redrv_data->i2c_mutex);
 
-	if (ps5169_i2c_check() < 0) {
-		pr_info("%s: i2c transfer failed. stop to try i2c transfer\n", __func__);
-		redrv_data = NULL;
-	} else 
-		ps5169_config(WORK_MODE, 0);
+	/* Do not touch the chip at probe: an i2c transfer here, early in boot,
+	 * reliably prevented the T970 from booting (kernel #8 vs #13/#14,
+	 * measured 2026-08-06). The USB/PD stack calls ps5169_config() on every
+	 * cable event anyway - verified working (USB_ONLY_MODE read 0x40)
+	 * without any probe-time initialization. */
 
 	return ret;
 }
