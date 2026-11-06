@@ -123,7 +123,10 @@ struct statx {
 	__u32	stx_dev_major;	/* ID of device containing file [uncond] */
 	__u32	stx_dev_minor;
 	/* 0x90 */
-	__u64	__spare2[14];	/* Spare space for future expansion */
+	__u64	stx_mnt_id;
+	__u64	__spare2;
+	/* 0xa0 */
+	__u64	__spare3[12];	/* Spare space for future expansion */
 	/* 0x100 */
 };
 
@@ -149,6 +152,8 @@ struct statx {
 #define STATX_BASIC_STATS	0x000007ffU	/* The stuff in the normal stat struct */
 #define STATX_BTIME		0x00000800U	/* Want/got stx_btime */
 #define STATX_ALL		0x00000fffU	/* All currently supported flags */
+#define STATX_MNT_ID		0x00001000U	/* Got stx_mnt_id */
+
 #define STATX__RESERVED		0x80000000U	/* Reserved for future struct statx expansion */
 
 /*
@@ -170,5 +175,6 @@ struct statx {
 #define STATX_ATTR_AUTOMOUNT		0x00001000 /* Dir: Automount trigger */
 #define STATX_ATTR_VERITY		0x00100000 /* [I] Verity protected file */
 
+#define STATX_ATTR_MOUNT_ROOT		0x00002000 /* Root of a mount */
 
 #endif /* _UAPI_LINUX_STAT_H */

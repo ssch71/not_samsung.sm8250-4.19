@@ -4928,6 +4928,16 @@ static struct pernet_operations rtnetlink_net_ops = {
 	.exit = rtnetlink_net_exit,
 };
 
+/* There are no nexthop objects on this kernel, so a dump of them is empty.
+ * Answering the request instead of EOPNOTSUPP lets systemd-networkd 258 and
+ * newer start: it enumerates nexthops unconditionally and treats any error
+ * as fatal. Creating or deleting one still fails with EOPNOTSUPP. */
+static int rtnl_dump_nexthop_none(struct sk_buff *skb,
+				  struct netlink_callback *cb)
+{
+	return 0;
+}
+
 void __init rtnetlink_init(void)
 {
 	if (register_pernet_subsys(&rtnetlink_net_ops))
@@ -4944,6 +4954,8 @@ void __init rtnetlink_init(void)
 	rtnl_register(PF_UNSPEC, RTM_GETADDR, NULL, rtnl_dump_all, 0);
 	rtnl_register(PF_UNSPEC, RTM_GETROUTE, NULL, rtnl_dump_all, 0);
 	rtnl_register(PF_UNSPEC, RTM_GETNETCONF, NULL, rtnl_dump_all, 0);
+	rtnl_register(PF_UNSPEC, RTM_GETNEXTHOP, NULL, rtnl_dump_nexthop_none,
+		      0);
 
 	rtnl_register(PF_BRIDGE, RTM_NEWNEIGH, rtnl_fdb_add, NULL, 0);
 	rtnl_register(PF_BRIDGE, RTM_DELNEIGH, rtnl_fdb_del, NULL, 0);
