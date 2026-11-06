@@ -839,7 +839,7 @@ int mhi_pci_probe(struct pci_dev *pci_dev,
 
 	ret = mhi_arch_pcie_init(mhi_cntrl);
 	if (ret)
-		return ret;
+		goto error_arch_init;
 
 	mhi_cntrl->dev = &mhi_dev->pci_dev->dev;
 
@@ -869,6 +869,14 @@ error_power_up:
 
 error_pci_probe:
 	mhi_arch_pcie_deinit(mhi_cntrl);
+
+error_arch_init:
+	/*
+	 * Nothing is powered any more. Left true, the esoc power_off that
+	 * follows a failed modem boot runs mhi_power_down() on this controller
+	 * and frees IRQs through mhi_cntrl->irq, which is NULL here.
+	 */
+	mhi_dev->powered_on = false;
 
 	return ret;
 }
