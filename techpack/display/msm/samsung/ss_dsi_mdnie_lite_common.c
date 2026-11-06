@@ -26,6 +26,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
  */
 
 #include "ss_dsi_mdnie_lite_common.h"
+#include "sde_color_processing.h"
 
 #define MDNIE_LITE_TUN_DEBUG
 
@@ -36,6 +37,65 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #endif
 
 static struct class *mdnie_class;
+
+#define SDE_MDNIE_PCC_ONE	(1 << 15)
+#define SDE_MDNIE_NIGHT_MODE_STEPS	11
+
+static int ss_sde_mdnie_update(struct samsung_display_driver_data *vdd)
+{
+	struct drm_crtc *crtc;
+	int red, green, blue;
+	int index;
+	bool enable;
+
+	if (!vdd || !vdd->mdnie.sde_mdnie)
+		return -EINVAL;
+
+	/* Framework sends white balance as -40..0 offsets from the native white. */
+	red = DIV_ROUND_CLOSEST((255 + vdd->mdnie.sde_white_rgb[0]) *
+			SDE_MDNIE_PCC_ONE, 255);
+	green = DIV_ROUND_CLOSEST((255 + vdd->mdnie.sde_white_rgb[1]) *
+			SDE_MDNIE_PCC_ONE, 255);
+	blue = DIV_ROUND_CLOSEST((255 + vdd->mdnie.sde_white_rgb[2]) *
+			SDE_MDNIE_PCC_ONE, 255);
+
+	if (vdd->mdnie.sde_night_mode) {
+		index = clamp(vdd->mdnie.sde_night_mode_index, 0,
+				SDE_MDNIE_NIGHT_MODE_STEPS - 1);
+		/* Preserve red while progressively reducing green and blue. */
+		green = green * (100 - DIV_ROUND_CLOSEST(index * 16,
+				SDE_MDNIE_NIGHT_MODE_STEPS - 1)) / 100;
+		blue = blue * (100 - DIV_ROUND_CLOSEST(index * 52,
+				SDE_MDNIE_NIGHT_MODE_STEPS - 1)) / 100;
+	}
+
+	enable = vdd->mdnie.sde_night_mode ||
+		vdd->mdnie.sde_white_rgb[0] ||
+		vdd->mdnie.sde_white_rgb[1] ||
+		vdd->mdnie.sde_white_rgb[2];
+	crtc = GET_DRM_CRTC(vdd);
+	if (!crtc)
+		return -ENODEV;
+
+	return sde_cp_crtc_set_ss_mdnie_pcc(crtc, enable, red, green, blue);
+}
+
+static int ss_sde_mdnie_commit(struct samsung_display_driver_data *vdd)
+{
+	struct drm_crtc *crtc;
+	int ret;
+
+	ret = ss_sde_mdnie_update(vdd);
+	if (ret)
+		return ret;
+
+	crtc = GET_DRM_CRTC(vdd);
+	LCD_INFO("SDE mDNIe: night %d/%d, white %d %d %d\n",
+		vdd->mdnie.sde_night_mode, vdd->mdnie.sde_night_mode_index,
+		vdd->mdnie.sde_white_rgb[0], vdd->mdnie.sde_white_rgb[1],
+		vdd->mdnie.sde_white_rgb[2]);
+	return sde_cp_crtc_commit_ss_mdnie(crtc);
+}
 
 char mdnie_app_name[][NAME_STRING_MAX] = {
 	"UI_APP",
@@ -137,6 +197,9 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 
 	if (vdd == NULL || !vdd->mdnie.support_mdnie)
 		return 0;
+
+	if (vdd->mdnie.sde_mdnie)
+		return ss_sde_mdnie_update(vdd);
 
 	if (ss_is_seamless_mode(vdd) ||
 			ss_is_panel_off(vdd)) {
@@ -726,6 +789,12 @@ static ssize_t whiteRGB_show(struct device *dev,
 
 	if (!vdd)
 		return 0;
+	if (vdd->mdnie.sde_mdnie)
+		return scnprintf(buf, PAGE_SIZE,
+			"Current whiteRGB SETTING: %d %d %d\n",
+			vdd->mdnie.sde_white_rgb[0],
+			vdd->mdnie.sde_white_rgb[1],
+			vdd->mdnie.sde_white_rgb[2]);
 
 	vdd = ss_check_hall_ic_get_vdd(vdd);
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
@@ -754,6 +823,18 @@ static ssize_t whiteRGB_store(struct device *dev,
 
 	if (!vdd || !vdd->mdnie.support_mdnie)
 		return size;
+	if (vdd->mdnie.sde_mdnie) {
+		sscanf(buf, "%d %d %d", &white_red, &white_green, &white_blue);
+		if (white_red < -40 || white_red > 0 ||
+				white_green < -40 || white_green > 0 ||
+				white_blue < -40 || white_blue > 0)
+			return -EINVAL;
+		vdd->mdnie.sde_white_rgb[0] = white_red;
+		vdd->mdnie.sde_white_rgb[1] = white_green;
+		vdd->mdnie.sde_white_rgb[2] = white_blue;
+		ss_sde_mdnie_commit(vdd);
+		return size;
+	}
 
 	vdd = ss_check_hall_ic_get_vdd(vdd);
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
@@ -885,6 +966,10 @@ static ssize_t night_mode_show(struct device *dev,
 
 	if (!vdd)
 		return 0;
+	if (vdd->mdnie.sde_mdnie)
+		return scnprintf(buf, PAGE_SIZE, "%d %d\n",
+			vdd->mdnie.sde_night_mode,
+			vdd->mdnie.sde_night_mode_index);
 
 	vdd = ss_check_hall_ic_get_vdd(vdd);
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
@@ -907,6 +992,16 @@ static ssize_t night_mode_store(struct device *dev,
 
 	if (!vdd)
 		return size;
+	if (vdd->mdnie.sde_mdnie) {
+		sscanf(buf, "%d %d", &enable, &idx);
+		if ((enable != 0 && enable != 1) || idx < 0 ||
+				idx >= SDE_MDNIE_NIGHT_MODE_STEPS)
+			return -EINVAL;
+		vdd->mdnie.sde_night_mode = enable;
+		vdd->mdnie.sde_night_mode_index = idx;
+		ss_sde_mdnie_commit(vdd);
+		return size;
+	}
 
 	vdd = ss_check_hall_ic_get_vdd(vdd);
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
@@ -1461,6 +1556,16 @@ void create_tcon_mdnie_node(struct samsung_display_driver_data *vdd)
 	if (IS_ERR(tune_mdnie_dev))
 		DPRINT("Failed to create device(mdnie)!\n");
 
+	if (vdd->mdnie.sde_mdnie) {
+		if (device_create_file(tune_mdnie_dev, &dev_attr_whiteRGB) < 0)
+			DPRINT("Failed to create device file(%s)!\n",
+				dev_attr_whiteRGB.attr.name);
+		if (device_create_file(tune_mdnie_dev, &dev_attr_night_mode) < 0)
+			DPRINT("Failed to create device file(%s)!\n",
+				dev_attr_night_mode.attr.name);
+		return;
+	}
+
 	/* APP */
 	if (device_create_file(tune_mdnie_dev, &dev_attr_scenario) < 0)
 		DPRINT("Failed to create device file(%s)!\n", dev_attr_scenario.attr.name);
@@ -1594,7 +1699,8 @@ struct mdnie_lite_tun_type *init_dsi_tcon_mdnie_class(struct samsung_display_dri
 	tune->color_lens_level = 0;
 
 	tune->afc_enable = 0;
-	mdnie_register_dpui(tune);
+	if (!vdd->mdnie.sde_mdnie)
+		mdnie_register_dpui(tune);
 
 	/* Set default link_stats as DSI_HS_MODE for mdnie tune data */
 //	vdd_data->mdnie_tune_data[index].mdnie_tune_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;

@@ -22,6 +22,7 @@
 #include <linux/kthread.h>
 #include <linux/of_fdt.h>
 #include <drm/drm_crtc.h>
+#include <drm/msm_drm_pp.h>
 #include "msm_prop.h"
 #include "sde_fence.h"
 #include "sde_kms.h"
@@ -336,6 +337,10 @@ struct sde_crtc {
 	struct mutex crtc_lock;
 	struct mutex crtc_cp_lock;
 	struct mutex vblank_modeset_ctrl_lock;
+
+	/* Samsung DDI mDNIe compatibility overlay, folded into plane CSC. */
+	struct drm_msm_pcc ss_mdnie_pcc;
+	bool ss_mdnie_pcc_enabled;
 
 	atomic_t frame_pending;
 	struct sde_crtc_frame_event frame_events[SDE_CRTC_FRAME_EVENT_SIZE];

@@ -9,6 +9,8 @@
 #include <linux/dma-buf.h>
 #include <linux/string.h>
 #include <drm/msm_drm_pp.h>
+#include <drm/drm_atomic.h>
+#include <drm/drm_modeset_lock.h>
 #include "sde_color_processing.h"
 #include "sde_kms.h"
 #include "sde_crtc.h"
@@ -1849,6 +1851,115 @@ void sde_cp_crtc_apply_properties(struct drm_crtc *crtc)
 	}
 exit:
 	mutex_unlock(&sde_crtc->crtc_cp_lock);
+}
+
+int sde_cp_crtc_set_ss_mdnie_pcc(struct drm_crtc *crtc, bool enable,
+		u32 red, u32 green, u32 blue)
+{
+	struct sde_crtc *sde_crtc;
+
+	if (!crtc)
+		return -EINVAL;
+
+	sde_crtc = to_sde_crtc(crtc);
+	mutex_lock(&sde_crtc->crtc_cp_lock);
+	memset(&sde_crtc->ss_mdnie_pcc, 0, sizeof(sde_crtc->ss_mdnie_pcc));
+	if (enable) {
+		sde_crtc->ss_mdnie_pcc.r.r = red;
+		sde_crtc->ss_mdnie_pcc.g.g = green;
+		sde_crtc->ss_mdnie_pcc.b.b = blue;
+	}
+	sde_crtc->ss_mdnie_pcc_enabled = enable;
+	mutex_unlock(&sde_crtc->crtc_cp_lock);
+
+	return 0;
+}
+
+int sde_cp_crtc_commit_ss_mdnie(struct drm_crtc *crtc)
+{
+	struct drm_modeset_acquire_ctx ctx;
+	struct drm_atomic_state *state = NULL;
+	struct drm_crtc_state *crtc_state;
+	struct drm_plane *plane;
+	struct drm_plane_state *plane_state;
+	struct drm_device *dev;
+	int retry_count = 0;
+	int ret;
+
+	if (!crtc || !crtc->dev || !crtc->state || !crtc->state->active)
+		return 0;
+
+	dev = crtc->dev;
+	drm_modeset_acquire_init(&ctx, 0);
+
+retry:
+	ret = drm_modeset_lock_all_ctx(dev, &ctx);
+	if (ret == -EDEADLK && retry_count++ < 20) {
+		drm_modeset_backoff(&ctx);
+		udelay(500);
+		goto retry;
+	}
+	if (ret)
+		goto out;
+
+	state = drm_atomic_state_alloc(dev);
+	if (!state) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	state->acquire_ctx = &ctx;
+	crtc_state = drm_atomic_get_crtc_state(state, crtc);
+	if (IS_ERR(crtc_state)) {
+		ret = PTR_ERR(crtc_state);
+		goto backoff;
+	}
+
+	/* PCC is folded into each plane's CSC by the established SDE path. */
+	list_for_each_entry(plane, &dev->mode_config.plane_list, head) {
+		if (!plane->state || plane->state->crtc != crtc)
+			continue;
+
+		plane_state = drm_atomic_get_plane_state(state, plane);
+		if (IS_ERR(plane_state)) {
+			ret = PTR_ERR(plane_state);
+			goto backoff;
+		}
+	}
+
+	ret = drm_atomic_commit(state);
+	if (ret == -EDEADLK)
+		goto backoff;
+	if (ret)
+		DRM_ERROR("ss_mdnie: atomic commit failed: %d\n", ret);
+	goto out;
+
+	/*
+	 * drm_atomic_get_crtc_state, drm_atomic_get_plane_state and
+	 * drm_atomic_commit can each return -EDEADLK, and the DRM contract is
+	 * that the caller drops what it holds, backs off and acquires again.
+	 * Retrying only around drm_modeset_lock_all_ctx left those three
+	 * returning while this context still held locks a concurrent commit was
+	 * waiting on - and a rotation is exactly such a commit. Clear the state
+	 * before backing off: it was built against locks about to be dropped.
+	 */
+backoff:
+	if (state) {
+		drm_atomic_state_clear(state);
+		drm_atomic_state_put(state);
+		state = NULL;
+	}
+	if (ret == -EDEADLK && retry_count++ < 20) {
+		drm_modeset_backoff(&ctx);
+		udelay(500);
+		goto retry;
+	}
+out:
+	if (state)
+		drm_atomic_state_put(state);
+	drm_modeset_drop_locks(&ctx);
+	drm_modeset_acquire_fini(&ctx);
+	return ret;
 }
 
 void sde_cp_crtc_install_properties(struct drm_crtc *crtc)
@@ -4030,6 +4141,10 @@ const struct drm_msm_pcc *sde_cp_crtc_get_pcc_cfg(struct drm_crtc *drm_crtc)
 	crtc = to_sde_crtc(drm_crtc);
 
 	mutex_lock(&crtc->crtc_cp_lock);
+	if (crtc->ss_mdnie_pcc_enabled) {
+		mutex_unlock(&crtc->crtc_cp_lock);
+		return &crtc->ss_mdnie_pcc;
+	}
 	list_for_each_entry(prop_node, &crtc->feature_list, feature_list) {
 		if (prop_node->feature == SDE_CP_CRTC_DSPP_PCC) {
 			blob = prop_node->blob_ptr;
@@ -4040,4 +4155,22 @@ const struct drm_msm_pcc *sde_cp_crtc_get_pcc_cfg(struct drm_crtc *drm_crtc)
 	mutex_unlock(&crtc->crtc_cp_lock);
 
 	return blob ? blob->data : NULL;
+}
+
+bool sde_cp_crtc_is_ss_mdnie_pcc(struct drm_crtc *drm_crtc,
+		const struct drm_msm_pcc *pcc)
+{
+	struct sde_crtc *crtc;
+	bool enabled;
+
+	if (!drm_crtc || !pcc)
+		return false;
+
+	crtc = to_sde_crtc(drm_crtc);
+	mutex_lock(&crtc->crtc_cp_lock);
+	enabled = crtc->ss_mdnie_pcc_enabled &&
+		pcc == &crtc->ss_mdnie_pcc;
+	mutex_unlock(&crtc->crtc_cp_lock);
+
+	return enabled;
 }

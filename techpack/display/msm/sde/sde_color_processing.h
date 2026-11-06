@@ -8,6 +8,7 @@
 #include <drm/drm_crtc.h>
 
 struct sde_irq_callback;
+struct drm_msm_pcc;
 
 /*
  * PA MEMORY COLOR types
@@ -140,6 +141,25 @@ void sde_cp_crtc_resume(struct drm_crtc *crtc);
  * @crtc: Pointer to crtc.
  */
 void sde_cp_crtc_clear(struct drm_crtc *crtc);
+
+/**
+ * sde_cp_crtc_set_ss_mdnie_pcc - update Samsung mDNIe-compatible PCC state
+ * @crtc: target display CRTC
+ * @enable: enable the PCC overlay
+ * @red: red diagonal coefficient in Q15 format
+ * @green: green diagonal coefficient in Q15 format
+ * @blue: blue diagonal coefficient in Q15 format
+ *
+ * The values are applied during the next atomic commit, where DSPP clocks and
+ * flush sequencing are owned by the normal SDE CRTC path.
+ */
+int sde_cp_crtc_set_ss_mdnie_pcc(struct drm_crtc *crtc, bool enable,
+		u32 red, u32 green, u32 blue);
+
+/* Submit a no-op atomic commit so pending mDNIe PCC state reaches hardware. */
+int sde_cp_crtc_commit_ss_mdnie(struct drm_crtc *crtc);
+bool sde_cp_crtc_is_ss_mdnie_pcc(struct drm_crtc *crtc,
+		const struct drm_msm_pcc *pcc);
 
 /**
  * sde_cp_ad_interrupt: Api to enable/disable ad interrupt

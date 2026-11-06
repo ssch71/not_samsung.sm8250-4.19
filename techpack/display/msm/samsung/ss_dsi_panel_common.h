@@ -808,6 +808,12 @@ struct mdnie_info {
 
 	struct mdnie_lite_tun_type *mdnie_tune_state_dsi;
 	struct mdnie_lite_tune_data *mdnie_data;
+
+	/* Use the SDE color pipeline instead of panel DSI mDNIe commands. */
+	bool sde_mdnie;
+	int sde_white_rgb[3];
+	bool sde_night_mode;
+	int sde_night_mode_index;
 };
 
 struct brightness_info {

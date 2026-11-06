@@ -179,7 +179,9 @@ static void samsung_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->br_info.common_br.bl_level = 255;//pac?
 
 	/* mdnie */
-	vdd->mdnie.support_mdnie = false;
+	/* One UI uses DDI mDNIe sysfs. Back it with SDE PCC on this TFT panel. */
+	vdd->mdnie.support_mdnie = true;
+	vdd->mdnie.sde_mdnie = true;
 
 	/* Brightness */
 	vdd->panel_func.samsung_brightness_tft_pwm_ldi = tft_pwm_ldi;
