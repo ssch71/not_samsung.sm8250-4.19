@@ -3556,7 +3556,9 @@ static int dpui_notifier_callback(struct notifier_block *self,
 	int size, i;
 	u8 *octa_id;
 	int site, rework, poc;
-	int flash_gamma_status;
+	/* -1 is READ_FAIL_NOT_LOADING; that enum is declared further down this file,
+	 * after this function, so the name is not visible here. */
+	int flash_gamma_status = -1;
 
 	if (dpui == NULL) {
 		LCD_ERR("err: dpui is null\n");
@@ -3634,10 +3636,26 @@ static int dpui_notifier_callback(struct notifier_block *self,
 
 	/* Panel Gamma Flash Loading Result */
 
-	for (i = 0; i < vdd->br_info.br_tbl_count; i++) {
-		br_tbl = &vdd->br_info.br_tbl[i];
-		if (br_tbl)
-			flash_gamma_status = flash_gamma_mode_check(vdd, br_tbl);
+	/*
+	 * Guard the walk explicitly. On a panel that never allocates brightness
+	 * tables both br_tbl and br_tbl_count keep their zero-initialised values,
+	 * and the compiler emits this loop as a bare do-while: the counter is
+	 * decremented BEFORE it is tested, so a count of 0 wraps to ~0ULL and the
+	 * loop does not end. The NULL br_tbl test skips the body while that runs,
+	 * so it spins in the kernel without logging anything.
+	 *
+	 * Measured on SM-T970 (2026-08-10): system_server's HQM thread reads
+	 * /sys/class/lcd/panel/dpui once at boot and never returns from the read,
+	 * holding one core in the kernel for the whole uptime (302 stime ticks per
+	 * 3 seconds), SoC ~86 C at idle and SIOP pinned at 70 from boot. The read
+	 * also ignores SIGKILL, so the process survives and blocks shutdown.
+	 */
+	if (vdd->br_info.br_tbl && vdd->br_info.br_tbl_count > 0) {
+		for (i = 0; i < vdd->br_info.br_tbl_count; i++) {
+			br_tbl = &vdd->br_info.br_tbl[i];
+			if (br_tbl)
+				flash_gamma_status = flash_gamma_mode_check(vdd, br_tbl);
+		}
 	}
 
 	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", flash_gamma_status);
