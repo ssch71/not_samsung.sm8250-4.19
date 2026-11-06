@@ -5625,6 +5625,51 @@ static void sec_bat_calculate_safety_time(struct sec_battery_info *battery)
 	pr_info("%s : REMAIN_TIME(%ld) CAL_REMAIN_TIME(%ld)\n", __func__, battery->expired_time, battery->cal_safety_time);
 }
 
+/*
+ * MinsOS: the "monitor once after wakeup" path below runs after every resume
+ * while discharging and used to call power_supply_changed() unconditionally -
+ * one "battery" wakeup source hit, one uevent, one healthd re-read of every
+ * property and, since the voltage always moves, one ACTION_BATTERY_CHANGED
+ * broadcast per resume. On that path only, publish when something userspace
+ * acts on moved since this work last published. Values set elsewhere without
+ * a uevent (misc_event_work, PRESENT, OTG) are in the snapshot, so they still
+ * go out here; callers that send their own uevent do not update it, which
+ * costs at most one extra uevent, never a missing one.
+ */
+static bool sec_bat_monitor_notify(struct sec_battery_info *battery,
+				   bool only_if_moved)
+{
+	static struct {
+		unsigned int capacity, charging_mode, misc_event, current_event;
+		int status, health, cable_type, temperature;
+		bool present;
+	} sent = { .status = -1 };
+
+	if (only_if_moved &&
+	    battery->capacity == sent.capacity &&
+	    battery->status == sent.status &&
+	    battery->health == sent.health &&
+	    battery->present == sent.present &&
+	    battery->cable_type == sent.cable_type &&
+	    battery->charging_mode == sent.charging_mode &&
+	    battery->misc_event == sent.misc_event &&
+	    battery->current_event == sent.current_event &&
+	    abs(battery->temperature - sent.temperature) < 10) /* 0.1 degC */
+		return false;
+
+	sent.capacity = battery->capacity;
+	sent.status = battery->status;
+	sent.health = battery->health;
+	sent.present = battery->present;
+	sent.cable_type = battery->cable_type;
+	sent.charging_mode = battery->charging_mode;
+	sent.misc_event = battery->misc_event;
+	sent.current_event = battery->current_event;
+	sent.temperature = battery->temperature;
+	power_supply_changed(battery->psy_bat);
+	return true;
+}
+
 static void sec_bat_monitor_work(
 				struct work_struct *work)
 {
@@ -5635,6 +5680,7 @@ static void sec_bat_monitor_work(
 	struct timespec c_ts = {0, };
 	union power_supply_propval val = {0, };
 	union power_supply_propval value = {0, };
+	bool uevent_sent;
 
 	dev_dbg(battery->dev, "%s: Start\n", __func__);
 	c_ts = ktime_to_timespec(ktime_get_boottime());
@@ -5689,9 +5735,10 @@ static void sec_bat_monitor_work(
 #if defined(CONFIG_BATTERY_CISD)
 					sec_bat_cisd_check(battery);
 #endif
-					power_supply_changed(battery->psy_bat);
-					pr_info("Skip monitor work(%ld, Vnow:%d(mV), SoC:%d(%%), Tbat:%d(0.1'C))\n",
-						c_ts.tv_sec - old_ts.tv_sec, battery->voltage_now, battery->capacity, battery->temperature);
+					uevent_sent = sec_bat_monitor_notify(battery, true);
+					pr_info("Skip monitor work(%ld, Vnow:%d(mV), SoC:%d(%%), Tbat:%d(0.1'C), uevent:%d)\n",
+						c_ts.tv_sec - old_ts.tv_sec, battery->voltage_now, battery->capacity, battery->temperature,
+						uevent_sent);
 
 				goto skip_monitor;
 			}
@@ -5936,7 +5983,7 @@ skip_current_monitor:
 		battery->charging_suspended = false;
 	}
 
-	power_supply_changed(battery->psy_bat);
+	sec_bat_monitor_notify(battery, false);
 
 skip_monitor:
 	sec_bat_set_polling(battery);
