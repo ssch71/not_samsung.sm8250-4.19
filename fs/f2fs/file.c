@@ -3128,7 +3128,15 @@ static int f2fs_ioc_setproject(struct file *filp, __u32 projid)
 	kprojid_t kprojid;
 	int err;
 
-	if (!f2fs_sb_has_project_quota(sbi)) {
+	/*
+	 * The superblock feature alone is not enough: a /data formatted by a
+	 * newer mkfs carries project_quota while Samsung's fstab still mounts
+	 * with usrquota,grpquota only. Without PRJQUOTA on this mount the
+	 * transfer below cannot succeed, so report the same "not supported"
+	 * this function already reports when the feature is absent, instead of
+	 * failing every FS_IOC_FSSETXATTR the media store makes.
+	 */
+	if (!f2fs_sb_has_project_quota(sbi) || !test_opt(sbi, PRJQUOTA)) {
 		if (projid != F2FS_DEF_PROJID)
 			return -EOPNOTSUPP;
 		else
