@@ -833,7 +833,9 @@
 #define DEFERRED_INITCALLS(level)					\
 		__deferred_initcall_start = .;		\
 		KEEP(*(.deferred_initcall##level##.init))		\
+		KEEP(*(.deferred_initcall##level##.init.*))		\
 		KEEP(*(.deferred_initcall##level##s.init))		\
+		KEEP(*(.deferred_initcall##level##s.init.*))		\
 		__deferred_initcall_end = .;
 #endif
 
