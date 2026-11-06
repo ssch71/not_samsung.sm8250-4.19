@@ -3965,6 +3965,21 @@ static int mmc_pm_notify(struct notifier_block *notify_block,
 		if (host->ops->get_cd)
 			present = host->ops->get_cd(host);
 
+		/*
+		 * MinsOS: nothing changed while we slept - the slot still holds
+		 * exactly what the bus knows about, and the card-detect IRQ (wake
+		 * capable, both edges) did not fire. Rescanning here takes a 500 ms
+		 * wakelock and, for a present card, pm_runtime_get_sync() +
+		 * mmc_resume_bus() on every resume, which defeats
+		 * CONFIG_MMC_BLOCK_DEFERRED_RESUME. A real insert/remove sets
+		 * trigger_card_event from the IRQ and still falls through.
+		 */
+		if (host->ops->get_cd && !host->trigger_card_event &&
+		    !!present == !!host->card) {
+			spin_unlock_irqrestore(&host->lock, flags);
+			break;
+		}
+
 #ifndef CONFIG_MMC_BLOCK_DEFERRED_RESUME        /* This is not needed to resume on pm_notifier */
 		if (mmc_bus_manual_resume(host) &&
 				!host->ignore_bus_resume_flags &&
