@@ -190,6 +190,8 @@ static void mhi_arch_pci_link_state_cb(struct msm_pcie_notify *notify)
 	}
 }
 
+static void mhi_arch_link_off(struct mhi_controller *mhi_cntrl);
+
 static int mhi_arch_esoc_ops_power_on(void *priv, unsigned int flags)
 {
 	struct mhi_controller *mhi_cntrl = priv;
@@ -225,7 +227,28 @@ static int mhi_arch_esoc_ops_power_on(void *priv, unsigned int flags)
 		return ret;
 	}
 
-	return mhi_pci_probe(pci_dev, NULL);
+	ret = mhi_pci_probe(pci_dev, NULL);
+	if (ret) {
+		/*
+		 * The probe failed with the link resumed (I-109: "Failed to enable
+		 * MSI, ret:-28" while the restarted SDX55 was not back on PCIe).
+		 * Its error paths leave powered_on false (0039), so the esoc
+		 * power_off that follows returns early and never takes the link
+		 * down; the next power_on's MSM_PCIE_RESUME is then refused ("link
+		 * is already powered on"), the probe reads a device that is not
+		 * there, and every esoc retry fails the same way until esoc panics
+		 * the whole device. Undo what this function did and take the link
+		 * down, as power_off does, so the retry trains the link again.
+		 */
+		MHI_CNTRL_ERR("probe failed, ret:%d, link down for the next try\n",
+			      ret);
+		pm_runtime_put_noidle(&pci_dev->dev);
+		if (pm_runtime_enabled(&pci_dev->dev))
+			pm_runtime_disable(&pci_dev->dev);
+		mhi_arch_link_off(mhi_cntrl);
+	}
+
+	return ret;
 }
 
 static void mhi_arch_link_off(struct mhi_controller *mhi_cntrl)
