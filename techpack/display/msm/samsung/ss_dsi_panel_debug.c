@@ -976,7 +976,15 @@ fail:
 	debugfs_remove_recursive(vdd->debug_data->root);
 
 fail_alloc:
-	kfree(vdd->debug_data);
+	/*
+	 * MinsOS: keep debug_data. It is not only debugfs bookkeeping: print_cmds,
+	 * panic_on_pptimeout and is_factory_mode are read and written at run time
+	 * through vdd->debug_data with no NULL check (S6TUUM2/S6TUUM3 panel init,
+	 * ss_dsi_panel_sysfs.c). Freeing it here left that pointer dangling, and
+	 * without CONFIG_DEBUG_FS this path runs on every boot: the panel's
+	 * "print_cmds = false" then cleared byte 0x28 of whatever took the slot,
+	 * which was the vrr_workqueue rescuer (I-44 kernel panic).
+	 */
 	LCD_ERR("Fail to create files for debugfs(ret=%d)\n", ret);
 
 
