@@ -3295,6 +3295,16 @@ static int f2fs_ioc_fssetxattr(struct file *filp, unsigned long arg)
 		goto out;
 
 	err = f2fs_ioc_setproject(filp, fa.fsx_projid);
+	/*
+	 * A superblock made without the project-quota feature answers
+	 * -EOPNOTSUPP here, and vold hands that to userspace as a failed file
+	 * creation. The flag changes above already succeeded; not being able
+	 * to record a project id is not a reason to fail the whole ioctl.
+	 * Only this errno is swallowed - -EPERM, -EOVERFLOW and quota
+	 * transfer failures still propagate.
+	 */
+	if (err == -EOPNOTSUPP)
+		err = 0;
 out:
 	inode_unlock(inode);
 	mnt_drop_write_file(filp);
