@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 4
 PATCHLEVEL = 19
-SUBLEVEL = 325
+SUBLEVEL = 331
 EXTRAVERSION =
 NAME = "People's Front"
 
@@ -1109,6 +1109,11 @@ endif
 ifeq ($(CONFIG_RELR),y)
 # ld.lld before 15 did not support -z pack-relative-relocs.
 LDFLAGS_vmlinux	+= $(call ld-option,--pack-dyn-relocs=relr,-z pack-relative-relocs)
+endif
+
+# userspace programs are linked via the compiler, use the correct linker
+ifeq ($(CONFIG_CC_IS_CLANG)$(CONFIG_LD_IS_LLD),yy)
+KBUILD_USERLDFLAGS += $(call cc-option, --ld-path=$(LD))
 endif
 
 # insure the checker run with the right endianness

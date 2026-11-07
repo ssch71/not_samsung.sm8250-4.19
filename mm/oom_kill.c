@@ -44,6 +44,7 @@
 #include <linux/memory_hotplug.h>
 #include <linux/show_mem_notifier.h>
 #include <linux/cred.h>
+#include <linux/nmi.h>
 
 #include <asm/tlb.h>
 #include "internal.h"
@@ -408,11 +409,16 @@ void dump_tasks(struct mem_cgroup *memcg, const nodemask_t *nodemask)
 	unsigned long heaviest_rss_sum = 0;
 	char heaviest_comm[TASK_COMM_LEN];
 	pid_t heaviest_pid;
+	int i = 0;
 
 	pr_info("Tasks state (memory values in pages):\n");
 	pr_info("[  pid  ]   uid  tgid total_vm      rss pgtables_bytes swapents oom_score_adj name\n");
 	rcu_read_lock();
 	for_each_process(p) {
+		/* Avoid potential softlockup warning */
+		if ((++i & 1023) == 0)
+			touch_softlockup_watchdog();
+
 		if (oom_unkillable_task(p, memcg, nodemask))
 			continue;
 

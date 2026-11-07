@@ -309,8 +309,8 @@ int can_send(struct sk_buff *skb, int loop)
 		netif_rx_ni(newskb);
 
 	/* update statistics */
-	can_stats->tx_frames++;
-	can_stats->tx_frames_delta++;
+	atomic_long_inc(&can_stats->tx_frames);
+	atomic_long_inc(&can_stats->tx_frames_delta);
 
 	return 0;
 
@@ -691,8 +691,8 @@ static void can_receive(struct sk_buff *skb, struct net_device *dev)
 	int matches;
 
 	/* update statistics */
-	can_stats->rx_frames++;
-	can_stats->rx_frames_delta++;
+	atomic_long_inc(&can_stats->rx_frames);
+	atomic_long_inc(&can_stats->rx_frames_delta);
 
 	/* create non-zero unique skb identifier together with *skb */
 	while (!(can_skb_prv(skb)->skbcnt))
@@ -714,8 +714,8 @@ static void can_receive(struct sk_buff *skb, struct net_device *dev)
 	consume_skb(skb);
 
 	if (matches > 0) {
-		can_stats->matches++;
-		can_stats->matches_delta++;
+		atomic_long_inc(&can_stats->matches);
+		atomic_long_inc(&can_stats->matches_delta);
 	}
 }
 
