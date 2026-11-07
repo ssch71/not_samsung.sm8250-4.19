@@ -234,14 +234,11 @@ static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
 		}
 	} else {
 		vma_set_anonymous(vma);
-		vma_set_file(vma, asma->file);
-		/* XXX: merge this with the get_file() above if possible */
-		fput(asma->file);
 	}
 
-	if (vma->vm_file)
-		fput(vma->vm_file);
-	vma->vm_file = asma->file;
+	vma_set_file(vma, asma->file);
+	/* Drop the temporary reference acquired before setting up the VMA. */
+	fput(asma->file);
 
 	return 0;
 }
