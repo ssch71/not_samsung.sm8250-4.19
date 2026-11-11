@@ -22,6 +22,7 @@
 #ifdef CONFIG_CPU_FREQ_LIMIT_USERSPACE
 #include <linux/cpufreq.h>
 #include <linux/cpufreq_limit.h>
+#include <linux/cpu.h>
 #endif
 
 #include "power.h"
@@ -950,6 +951,44 @@ power_attr(cpufreq_table);
 power_attr(cpufreq_max_limit);
 power_attr(cpufreq_min_limit);
 power_attr(over_limit);
+
+/*
+ * GOS IPM (libipm.so) looks for the newer cpufreq_limit layout at
+ * /sys/devices/system/cpu/cpufreq_limit and keeps IPM (and with it the
+ * Game Booster performance monitor ringlog) disabled when it is missing.
+ * Expose the same attributes there as well.
+ */
+static struct attribute *cflm_compat_attrs[] = {
+	&cpufreq_table_attr.attr,
+	&cpufreq_max_limit_attr.attr,
+	&cpufreq_min_limit_attr.attr,
+	&over_limit_attr.attr,
+	NULL,
+};
+
+static const struct attribute_group cflm_compat_group = {
+	.attrs = cflm_compat_attrs,
+};
+
+static int __init cflm_compat_init(void)
+{
+	struct kobject *kobj;
+	int ret;
+
+	if (!cpu_subsys.dev_root)
+		return -ENODEV;
+
+	kobj = kobject_create_and_add("cpufreq_limit", &cpu_subsys.dev_root->kobj);
+	if (!kobj)
+		return -ENOMEM;
+
+	ret = sysfs_create_group(kobj, &cflm_compat_group);
+	if (ret)
+		kobject_put(kobj);
+
+	return ret;
+}
+late_initcall(cflm_compat_init);
 #endif
 
 #ifdef CONFIG_PM_TRACE
