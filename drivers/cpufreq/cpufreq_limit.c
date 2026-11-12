@@ -104,7 +104,8 @@ struct cpufreq_limit_parameter param = {
 	.ltl_divider		= 2,
 	.use_hotplug_out	= false,
 
-	.hmp_boost_type		= CONSERVATIVE_BOOST,
+	/* The WALT boost backend was removed; frequency limits still apply. */
+	.hmp_boost_type		= NO_BOOST,
 	.hmp_boost_active	= 0,
 	.hmp_prev_boost_type = 0,
 
@@ -811,6 +812,14 @@ static ssize_t store_hmp_boost_type(struct kobject *a, struct kobj_attribute *b,
 	int ret;
 
 	ret = kstrtouint(buf, 0, &input);
+	if (ret)
+		return ret;
+	if (input > RESTRAINED_BOOST)
+		return -EINVAL;
+	/* sched_set_boost() is a stub in this tree, not a CASS boost API. */
+	if (input != NO_BOOST)
+		return -EOPNOTSUPP;
+
 	param.hmp_boost_type = input;
 
 	return count;
