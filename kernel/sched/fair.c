@@ -5422,6 +5422,10 @@ set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, bool first)
 	if (se->on_rq && first)
 		set_protect_slice(cfs_rq, se);
 
+	/* Slice protection requires the selected entity to be current. */
+	if (se->on_rq && first)
+		set_protect_slice(cfs_rq, se);
+
 	/*
 	 * Track our maximum slice length, if the CPU's load is at
 	 * least twice that of our own weight (i.e. dont track it
