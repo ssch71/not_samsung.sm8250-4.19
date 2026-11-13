@@ -14,7 +14,7 @@ device.name2=y2q
 device.name3=z3q
 device.name4=c1q
 device.name5=c2q
-supported.versions=13 - 16
+supported.versions=13 - 17
 supported.patchlevels=
 '; }
 
