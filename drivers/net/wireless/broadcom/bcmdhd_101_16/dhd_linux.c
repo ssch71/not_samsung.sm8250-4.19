@@ -5400,6 +5400,7 @@ void dhd_set_scb_probe(dhd_pub_t *dhd)
 	ret = dhd_iovar(dhd, 0, "scb_probe", NULL, 0, iovbuf, sizeof(iovbuf), FALSE);
 	if (ret < 0) {
 		DHD_ERROR(("%s: GET max_scb_probe failed\n", __FUNCTION__));
+		return;
 	}
 
 	memcpy(&scb_probe, iovbuf, sizeof(wl_scb_probe_t));
