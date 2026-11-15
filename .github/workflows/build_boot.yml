@@ -77,6 +77,7 @@ jobs:
       - name: Build kernel
         env:
           NOT_DEBUG: ${{ github.event.inputs.debug == 'true' && '1' || '0' }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           chmod +x build_sm8250.sh
           ./build_sm8250.sh "${{ matrix.device }}" "clang-toolchain"

@@ -35,6 +35,8 @@ jobs:
         run: echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
         
       - name: Run build_sm8250.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           chmod +x build_sm8250.sh
           ./build_sm8250.sh "${{ matrix.device }}" "clang-toolchain"

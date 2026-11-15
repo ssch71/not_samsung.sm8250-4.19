@@ -38,8 +38,16 @@ git submodule update --init --recursive
 if ! [ -d "$TOOLCHAIN_DIR" ]; then
     echo -e "${YELLOW}Clang not found! Downloading...${NC}"
     mkdir -p "$TOOLCHAIN_DIR"
-    ASSET_URL=$(curl -fsSL https://api.github.com/repos/Neutron-Toolchains/clang-build-catalogue/releases/latest |
-                jq -r '.assets[] | select(.name | endswith(".tar.zst")) | .browser_download_url' | head -n1)
+    API_AUTH=()
+    [ -n "$GITHUB_TOKEN" ] && API_AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN")
+    ASSET_URL=""
+    for TRY in 1 2 3 4 5; do
+        ASSET_URL=$(curl -fsSL "${API_AUTH[@]}" https://api.github.com/repos/Neutron-Toolchains/clang-build-catalogue/releases/latest |
+                    jq -r '.assets[] | select(.name | endswith(".tar.zst")) | .browser_download_url' | head -n1)
+        [ -n "$ASSET_URL" ] && break
+        echo -e "${YELLOW}Toolchain lookup failed (try $TRY/5), retrying...${NC}"
+        sleep $((TRY * 15))
+    done
     [ -z "$ASSET_URL" ] && echo -e "${RED}Failed to find toolchain release!${NC}" && exit 1
     curl -L "$ASSET_URL" | tar --zstd -x -C "$TOOLCHAIN_DIR" --strip-components=1 || exit 1
     echo -e "${GREEN}Clang ready!${NC}"
