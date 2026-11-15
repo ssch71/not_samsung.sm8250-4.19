@@ -210,6 +210,12 @@ static DEFINE_RWLOCK(shrinker_rwlock);
 
 static DEFINE_IDR(shrinker_idr);
 static int shrinker_nr_max;
+/*
+ * The shrinker list itself is protected by shrinker_lock and RCU, but the
+ * memcg-aware shrinker IDR and shrinker_nr_max still need the read/write
+ * semaphore that shrink_slab_memcg() trylocks.
+ */
+static DECLARE_RWSEM(shrinker_rwsem);
 
 static int prealloc_memcg_shrinker(struct shrinker *shrinker)
 {
