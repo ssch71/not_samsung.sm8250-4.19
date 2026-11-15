@@ -24,7 +24,7 @@ export KCFLAGS="-Wno-error=pointer-to-enum-cast -Wno-error=int-conversion -Wno-u
 DEFCONFIG="vendor/kona-perf_defconfig \
            vendor/samsung/kona-sec-common.config \
            vendor/samsung/${DEVICE}.config \
-           vendor/not/ksu.config \
+           vendor/not/ksu.config vendor/not/droidspaces.config \
            vendor/not/localversion.config"
 
 # NOT_DEBUG=1: let init/userspace logs reach dmesg and last_kmsg

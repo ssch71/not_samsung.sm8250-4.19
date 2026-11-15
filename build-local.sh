@@ -80,11 +80,11 @@ case "$add_choice" in
         ;;
     ksu)
         ZIPNAME="not-ksu-$ZIPNAME"
-        EXTRA_CONFIG="vendor/not/ksu.config vendor/not/localversion.config"
+        EXTRA_CONFIG="vendor/not/ksu.config vendor/not/droidspaces.config vendor/not/localversion.config"
         ;;
     ksu)
         ZIPNAME="not-ksu-permissive-$ZIPNAME"
-        EXTRA_CONFIG="vendor/not/ksu.config vendor/not/localversion.config vendor/not/permissive.config"
+        EXTRA_CONFIG="vendor/not/ksu.config vendor/not/droidspaces.config vendor/not/localversion.config vendor/not/permissive.config"
         ;;
 esac
 
