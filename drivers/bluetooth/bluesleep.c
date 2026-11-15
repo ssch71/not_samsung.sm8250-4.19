@@ -943,7 +943,7 @@ static int bluesleep_probe(struct platform_device *pdev)
 	clear_bit(BT_SUSPEND, &flags);
 
 		ret = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr,
-					/*IRQF_DISABLED|*/IRQF_TRIGGER_RISING,
+					/*IRQF_DISABLED|*/IRQF_TRIGGER_RISING | IRQF_NOBALANCING,
 				"bluetooth_hostwake", NULL);
 	if (ret  < 0) {
 		BT_ERR("Couldn't acquire BT_HOST_WAKE IRQ");

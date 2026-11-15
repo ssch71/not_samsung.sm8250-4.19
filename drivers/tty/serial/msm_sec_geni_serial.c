@@ -2635,7 +2635,7 @@ static int msm_geni_serial_startup(struct uart_port *uport)
 
 	if (msm_port->wakeup_irq > 0) {
 		ret = request_irq(msm_port->wakeup_irq, msm_geni_wakeup_isr,
-				IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+				IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_NOBALANCING,
 				"hs_uart_wakeup", uport);
 		if (unlikely(ret)) {
 			dev_err(uport->dev, "%s:Failed to get WakeIRQ ret%d\n",
@@ -3702,7 +3702,7 @@ static int msm_geni_serial_probe(struct platform_device *pdev)
 					"msm_serial_geni%d", uport->line);
 	irq_set_status_flags(uport->irq, IRQ_NOAUTOEN);
 	ret = devm_request_irq(uport->dev, uport->irq, msm_geni_serial_isr,
-				IRQF_TRIGGER_HIGH, dev_port->name, uport);
+				IRQF_TRIGGER_HIGH | IRQF_NOBALANCING, dev_port->name, uport);
 	if (ret) {
 		dev_err(uport->dev, "%s: Failed to get IRQ ret %d\n",
 							__func__, ret);
