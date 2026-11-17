@@ -195,6 +195,9 @@ static DEFINE_RWLOCK(shrinker_rwlock);
 
 #ifdef CONFIG_MEMCG_KMEM
 
+/* Protect the memcg shrinker IDR and map expansion during reclaim. */
+static DECLARE_RWSEM(shrinker_rwsem);
+
 /*
  * We allow subsystems to populate their shrinker-related
  * LRU lists before register_shrinker_prepared() is called
@@ -446,11 +449,14 @@ void register_shrinker_prepared(struct shrinker *shrinker)
 	spin_lock(&shrinker_lock);
 	/* Use the RCU list mutation primitive to allow concurrent iteration */
 	list_add_tail_rcu(&shrinker->list, &shrinker_list);
-#ifdef CONFIG_MEMCG_KMEM
-	if (shrinker->flags & SHRINKER_MEMCG_AWARE)
-		idr_replace(&shrinker_idr, shrinker, shrinker->id);
-#endif
 	spin_unlock(&shrinker_lock);
+#ifdef CONFIG_MEMCG_KMEM
+	if (shrinker->flags & SHRINKER_MEMCG_AWARE) {
+		down_write(&shrinker_rwsem);
+		idr_replace(&shrinker_idr, shrinker, shrinker->id);
+		up_write(&shrinker_rwsem);
+	}
+#endif
 }
 
 int register_shrinker(struct shrinker *shrinker)
