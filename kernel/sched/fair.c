@@ -5850,16 +5850,17 @@ void unthrottle_cfs_rq(struct cfs_rq *cfs_rq)
 	runnable_delta = cfs_rq->h_nr_runnable;
 	idle_delta = cfs_rq->h_nr_idle;
 	for_each_sched_entity(se) {
+		cfs_rq = cfs_rq_of(se);
+
 		/* Handle any unfinished DELAY_DEQUEUE business first. */
 		if (se->sched_delayed) {
 			int flags = DEQUEUE_SLEEP | DEQUEUE_DELAYED;
 
-			dequeue_entity(qcfs_rq, se, flags);
-		} else if (se->on_rq)
-                        break;
-                }
+			dequeue_entity(cfs_rq, se, flags);
+		} else if (se->on_rq) {
+			break;
+		}
 
-		cfs_rq = cfs_rq_of(se);
 		enqueue_entity(cfs_rq, se, ENQUEUE_WAKEUP);
 
 		cfs_rq->h_nr_queued += queued_delta;
@@ -5878,7 +5879,7 @@ void unthrottle_cfs_rq(struct cfs_rq *cfs_rq)
 		se_update_runnable(se);
 
 		cfs_rq->h_nr_queued += queued_delta;
-                cfs_rq->h_nr_runnable += runnable_delta;
+		cfs_rq->h_nr_runnable += runnable_delta;
 		cfs_rq->h_nr_idle += idle_delta;
 
 		/* end evaluation on encountering a throttled cfs_rq */
@@ -6157,16 +6158,6 @@ static void sync_throttle(struct task_group *tg, int cpu)
 
 	cfs_rq->throttle_count = pcfs_rq->throttle_count;
 	cfs_rq->throttled_clock_pelt = rq_clock_pelt(cpu_rq(cpu));
-
-	/*
-	 * It is not enough to sync the "pelt_clock_throttled" indicator
-	 * with the parent cfs_rq when the hierarchy is not queued.
-	 * Always join a throttled hierarchy with PELT clock throttled
-	 * and leaf it to the first enqueue, or distribution to
-	 * unthrottle the PELT clock.
-	 */
-	if (cfs_rq->throttle_count)
-		cfs_rq->pelt_clock_throttled = 1;
 }
 
 /* conditionally throttle active cfs_rq's from put_prev_entity() */
@@ -13229,7 +13220,7 @@ static void task_change_group_fair(struct task_struct *p)
 	 * We couldn't detach or attach a forked task which
 	 * hasn't been woken up by wake_up_new_task().
 	 */
-	if (READ_ONCE(p->__state) == TASK_NEW)
+	if (READ_ONCE(p->state) == TASK_NEW)
 		return;
 
 	detach_task_cfs_rq(p);
