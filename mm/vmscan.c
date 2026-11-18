@@ -195,9 +195,6 @@ static DEFINE_RWLOCK(shrinker_rwlock);
 
 #ifdef CONFIG_MEMCG_KMEM
 
-/* Protect the memcg shrinker IDR and map expansion during reclaim. */
-static DECLARE_RWSEM(shrinker_rwsem);
-
 /*
  * We allow subsystems to populate their shrinker-related
  * LRU lists before register_shrinker_prepared() is called
