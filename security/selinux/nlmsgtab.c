@@ -158,6 +158,36 @@ static int nlmsg_perm(u16 nlmsg_type, u32 *perm, const struct nlmsg_perm *tab, s
 	return err;
 }
 
+/*
+ * The generic "nlmsg" extended permission of each class, used instead of the
+ * table below when the policy enables netlink_xperm.
+ */
+int selinux_nlmsg_xperm_perm(u16 sclass, u32 *perm)
+{
+	switch (sclass) {
+	case SECCLASS_NETLINK_ROUTE_SOCKET:
+		*perm = NETLINK_ROUTE_SOCKET__NLMSG;
+		return 0;
+	case SECCLASS_NETLINK_TCPDIAG_SOCKET:
+		*perm = NETLINK_TCPDIAG_SOCKET__NLMSG;
+		return 0;
+	case SECCLASS_NETLINK_XFRM_SOCKET:
+		*perm = NETLINK_XFRM_SOCKET__NLMSG;
+		return 0;
+	case SECCLASS_NETLINK_AUDIT_SOCKET:
+		*perm = NETLINK_AUDIT_SOCKET__NLMSG;
+		return 0;
+	/* While it is possible to add a similar permission to other
+	 * netlink classes, note that the extended permission value is
+	 * matched against the nlmsg_type field. Notably,
+	 * SECCLASS_NETLINK_GENERIC_SOCKET uses dynamic values for this
+	 * field, which means that it cannot be added as-is.
+	 */
+	default:
+		return -ENOENT;
+	}
+}
+
 int selinux_nlmsg_lookup(u16 sclass, u16 nlmsg_type, u32 *perm)
 {
 	int err = 0;

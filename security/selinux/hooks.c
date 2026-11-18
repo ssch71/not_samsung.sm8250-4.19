@@ -3547,7 +3547,7 @@ static int ioctl_has_perm(const struct cred *cred, struct file *file,
 	isec = inode_security(inode);
 	rc = avc_has_extended_perms(&selinux_state,
 				    ssid, isec->sid, isec->sclass,
-				    requested, driver, xperm, &ad);
+				    requested, driver, AVC_EXT_IOCTL, xperm, &ad);
 out:
 	return rc;
 }
@@ -5820,6 +5820,52 @@ static unsigned int selinux_ipv6_postroute(void *priv,
 
 #endif	/* CONFIG_NETFILTER */
 
+/*
+ * Backport of "selinux: Add netlink xperm support" (v6.13): with the
+ * netlink_xperm policy capability the generic "nlmsg" permission is checked
+ * as an extended permission whose 16 bits are the nlmsg_type, which is how
+ * Android 16+ keeps apps from RTM_GETLINK (the device MAC) and friends.
+ *
+ * Unlike upstream, a domain the policy grants no "nlmsg" at all keeps the
+ * legacy nlmsg_read/nlmsg_write check: the vendor policy on these devices
+ * predates netlink_xperm, and switching its daemons to a permission it never
+ * grants would cut them off netlink.
+ */
+static bool nlmsg_sock_has_base_perm(struct sock *sk, u32 perm)
+{
+	struct sk_security_struct *sksec = sk->sk_security;
+	struct av_decision avd;
+
+	if (sksec->sid == SECINITSID_KERNEL)
+		return true;
+
+	return !avc_has_perm_noaudit(&selinux_state, current_sid(), sksec->sid,
+				     sksec->sclass, perm, AVC_STRICT, &avd);
+}
+
+static int nlmsg_sock_has_extended_perms(struct sock *sk, u32 perms, u16 nlmsg_type)
+{
+	struct sk_security_struct *sksec = sk->sk_security;
+	struct common_audit_data ad;
+	struct lsm_network_audit net = {0,};
+	u8 driver;
+	u8 xperm;
+
+	if (sksec->sid == SECINITSID_KERNEL)
+		return 0;
+
+	ad.type = LSM_AUDIT_DATA_NET;
+	ad.u.net = &net;
+	ad.u.net->sk = sk;
+
+	driver = nlmsg_type >> 8;
+	xperm = nlmsg_type & 0xff;
+
+	return avc_has_extended_perms(&selinux_state,
+				      current_sid(), sksec->sid, sksec->sclass,
+				      perms, driver, AVC_EXT_NLMSG, xperm, &ad);
+}
+
 static int selinux_netlink_send(struct sock *sk, struct sk_buff *skb)
 {
 	int rc = 0;
@@ -5842,6 +5888,16 @@ static int selinux_netlink_send(struct sock *sk, struct sk_buff *skb)
 		 */
 		if (nlh->nlmsg_len < NLMSG_HDRLEN || nlh->nlmsg_len > data_len)
 			return 0;
+
+		if (selinux_policycap_netlink_xperm() &&
+		    !selinux_nlmsg_xperm_perm(sclass, &perm) &&
+		    nlmsg_sock_has_base_perm(sk, perm)) {
+			rc = nlmsg_sock_has_extended_perms(sk, perm,
+							   nlh->nlmsg_type);
+			if (rc)
+				return rc;
+			goto next;
+		}
 
 		rc = selinux_nlmsg_lookup(sclass, nlh->nlmsg_type, &perm);
 		if (rc == 0) {
@@ -5867,6 +5923,7 @@ static int selinux_netlink_send(struct sock *sk, struct sk_buff *skb)
 			return rc;
 		}
 
+next:
 		/* move to the next message after applying netlink padding */
 		msg_len = NLMSG_ALIGN(nlh->nlmsg_len);
 		if (msg_len >= data_len)

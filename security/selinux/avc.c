@@ -276,13 +276,15 @@ int avc_get_hash_stats(struct selinux_avc *avc, char *page)
  * using a linked list for extended_perms_decision lookup because the list is
  * always small. i.e. less than 5, typically 1
  */
-static struct extended_perms_decision *avc_xperms_decision_lookup(u8 driver,
-					struct avc_xperms_node *xp_node)
+static struct extended_perms_decision *
+avc_xperms_decision_lookup(u8 driver, u8 base_perm,
+			   struct avc_xperms_node *xp_node)
 {
 	struct avc_xperms_decision_node *xpd_node;
 
 	list_for_each_entry(xpd_node, &xp_node->xpd_head, xpd_list) {
-		if (xpd_node->xpd.driver == driver)
+		if (xpd_node->xpd.driver == driver &&
+		    xpd_node->xpd.base_perm == base_perm)
 			return &xpd_node->xpd;
 	}
 	return NULL;
@@ -307,11 +309,12 @@ avc_xperms_has_perm(struct extended_perms_decision *xpd,
 }
 
 static void avc_xperms_allow_perm(struct avc_xperms_node *xp_node,
-				u8 driver, u8 perm)
+				  u8 driver, u8 base_perm, u8 perm)
 {
 	struct extended_perms_decision *xpd;
 	security_xperm_set(xp_node->xp.drivers.p, driver);
-	xpd = avc_xperms_decision_lookup(driver, xp_node);
+	xp_node->xp.base_perms |= base_perm;
+	xpd = avc_xperms_decision_lookup(driver, base_perm, xp_node);
 	if (xpd && xpd->allowed)
 		security_xperm_set(xpd->allowed->p, perm);
 }
@@ -347,6 +350,7 @@ static void avc_xperms_free(struct avc_xperms_node *xp_node)
 static void avc_copy_xperms_decision(struct extended_perms_decision *dest,
 					struct extended_perms_decision *src)
 {
+	dest->base_perm = src->base_perm;
 	dest->driver = src->driver;
 	dest->used = src->used;
 	if (dest->used & XPERMS_ALLOWED)
@@ -374,6 +378,7 @@ static inline void avc_quick_copy_xperms_decision(u8 perm,
 	 */
 	u8 i = perm >> 5;
 
+	dest->base_perm = src->base_perm;
 	dest->used = src->used;
 	if (dest->used & XPERMS_ALLOWED)
 		dest->allowed->p[i] = src->allowed->p[i];
@@ -459,6 +464,7 @@ static int avc_xperms_populate(struct avc_node *node,
 
 	memcpy(dest->xp.drivers.p, src->xp.drivers.p, sizeof(dest->xp.drivers.p));
 	dest->xp.len = src->xp.len;
+	dest->xp.base_perms = src->xp.base_perms;
 
 	/* for each source xpd allocate a destination xpd and copy */
 	list_for_each_entry(src_xpd, &src->xpd_head, xpd_list) {
@@ -856,7 +862,8 @@ out:
  * will release later by RCU.
  */
 static int avc_update_node(struct selinux_avc *avc,
-			   u32 event, u32 perms, u8 driver, u8 xperm, u32 ssid,
+			   u32 event, u32 perms, u8 driver, u8 base_perm,
+			   u8 xperm, u32 ssid,
 			   u32 tsid, u16 tclass, u32 seqno,
 			   struct extended_perms_decision *xpd,
 			   u32 flags)
@@ -930,7 +937,7 @@ static int avc_update_node(struct selinux_avc *avc,
 	case AVC_CALLBACK_GRANT:
 		node->ae.avd.allowed |= perms;
 		if (node->ae.xp_node && (flags & AVC_EXTENDED_PERMS))
-			avc_xperms_allow_perm(node->ae.xp_node, driver, xperm);
+			avc_xperms_allow_perm(node->ae.xp_node, driver, base_perm, xperm);
 		break;
 	case AVC_CALLBACK_TRY_REVOKE:
 	case AVC_CALLBACK_REVOKE:
@@ -1037,8 +1044,8 @@ struct avc_node *avc_compute_av(struct selinux_state *state,
 static noinline int avc_denied(struct selinux_state *state,
 			       u32 ssid, u32 tsid,
 			       u16 tclass, u32 requested,
-			       u8 driver, u8 xperm, unsigned int flags,
-			       struct av_decision *avd)
+			       u8 driver, u8 base_perm, u8 xperm,
+			       unsigned int flags, struct av_decision *avd)
 {
 	if (flags & AVC_STRICT)
 		return -EACCES;
@@ -1048,7 +1055,7 @@ static noinline int avc_denied(struct selinux_state *state,
 		return -EACCES;
 
 	avc_update_node(state->avc, AVC_CALLBACK_GRANT, requested, driver,
-			xperm, ssid, tsid, tclass, avd->seqno, NULL, flags);
+			base_perm, xperm, ssid, tsid, tclass, avd->seqno, NULL, flags);
 	return 0;
 }
 
@@ -1061,7 +1068,8 @@ static noinline int avc_denied(struct selinux_state *state,
  */
 int avc_has_extended_perms(struct selinux_state *state,
 			   u32 ssid, u32 tsid, u16 tclass, u32 requested,
-			   u8 driver, u8 xperm, struct common_audit_data *ad)
+			   u8 driver, u8 base_perm, u8 xperm,
+			   struct common_audit_data *ad)
 {
 	struct avc_node *node;
 	struct av_decision avd;
@@ -1095,22 +1103,23 @@ int avc_has_extended_perms(struct selinux_state *state,
 	local_xpd.auditallow = &auditallow;
 	local_xpd.dontaudit = &dontaudit;
 
-	xpd = avc_xperms_decision_lookup(driver, xp_node);
+	xpd = avc_xperms_decision_lookup(driver, base_perm, xp_node);
 	if (unlikely(!xpd)) {
 		/*
 		 * Compute the extended_perms_decision only if the driver
-		 * is flagged
+		 * is flagged and the base permission is known.
 		 */
-		if (!security_xperm_test(xp_node->xp.drivers.p, driver)) {
+		if (!security_xperm_test(xp_node->xp.drivers.p, driver) ||
+		    !(xp_node->xp.base_perms & base_perm)) {
 			avd.allowed &= ~requested;
 			goto decision;
 		}
 		rcu_read_unlock();
 		security_compute_xperms_decision(state, ssid, tsid, tclass,
-						 driver, &local_xpd);
+						 driver, base_perm, &local_xpd);
 		rcu_read_lock();
 		avc_update_node(state->avc, AVC_CALLBACK_ADD_XPERMS, requested,
-				driver, xperm, ssid, tsid, tclass, avd.seqno,
+				driver, base_perm, xperm, ssid, tsid, tclass, avd.seqno,
 				&local_xpd, 0);
 	} else {
 		avc_quick_copy_xperms_decision(xperm, &local_xpd, xpd);
@@ -1124,7 +1133,7 @@ decision:
 	denied = requested & ~(avd.allowed);
 	if (unlikely(denied))
 		rc = avc_denied(state, ssid, tsid, tclass, requested,
-				driver, xperm, AVC_EXTENDED_PERMS, &avd);
+				driver, base_perm, xperm, AVC_EXTENDED_PERMS, &avd);
 
 	rcu_read_unlock();
 
@@ -1178,7 +1187,7 @@ inline int avc_has_perm_noaudit(struct selinux_state *state,
 
 	denied = requested & ~(avd->allowed);
 	if (unlikely(denied))
-		rc = avc_denied(state, ssid, tsid, tclass, requested, 0, 0,
+		rc = avc_denied(state, ssid, tsid, tclass, requested, 0, 0, 0,
 				flags, avd);
 
 	rcu_read_unlock();

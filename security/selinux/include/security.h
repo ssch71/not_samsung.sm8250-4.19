@@ -78,6 +78,11 @@ enum {
 	POLICYDB_CAPABILITY_ALWAYSNETWORK,
 	POLICYDB_CAPABILITY_CGROUPSECLABEL,
 	POLICYDB_CAPABILITY_NNP_NOSUID_TRANSITION,
+	/* only named so that the policy bits line up with upstream */
+	POLICYDB_CAPABILITY_GENFS_SECLABEL_SYMLINKS,
+	POLICYDB_CAPABILITY_IOCTL_SKIP_CLOEXEC,
+	POLICYDB_CAPABILITY_USERSPACE_INITIAL_CONTEXT,
+	POLICYDB_CAPABILITY_NETLINK_XPERM,
 	__POLICYDB_CAPABILITY_MAX
 };
 #define POLICYDB_CAPABILITY_MAX (__POLICYDB_CAPABILITY_MAX - 1)
@@ -211,6 +216,13 @@ static inline bool selinux_policycap_nnp_nosuid_transition(void)
 	return state->policycap[POLICYDB_CAPABILITY_NNP_NOSUID_TRANSITION];
 }
 
+static inline bool selinux_policycap_netlink_xperm(void)
+{
+	struct selinux_state *state = &selinux_state;
+
+	return READ_ONCE(state->policycap[POLICYDB_CAPABILITY_NETLINK_XPERM]);
+}
+
 static inline bool selinux_android_nlroute_getlink(void)
 {
 	struct selinux_state *state = &selinux_state;
@@ -254,9 +266,14 @@ struct extended_perms_data {
 	u32 p[8];
 };
 
+/* Which base permission an extended permission decision belongs to */
+#define AVC_EXT_IOCTL	(1 << 0) /* Cache entry for an ioctl extended permission */
+#define AVC_EXT_NLMSG	(1 << 1) /* Cache entry for an nlmsg extended permission */
+
 struct extended_perms_decision {
 	u8 used;
 	u8 driver;
+	u8 base_perm;
 	struct extended_perms_data *allowed;
 	struct extended_perms_data *auditallow;
 	struct extended_perms_data *dontaudit;
@@ -264,6 +281,7 @@ struct extended_perms_decision {
 
 struct extended_perms {
 	u16 len;	/* length associated decision chain */
+	u8 base_perms;	/* which base permissions are covered */
 	struct extended_perms_data drivers; /* flag drivers that are used */
 };
 
@@ -277,7 +295,7 @@ void security_compute_av(struct selinux_state *state,
 
 void security_compute_xperms_decision(struct selinux_state *state,
 				      u32 ssid, u32 tsid, u16 tclass,
-				      u8 driver,
+				      u8 driver, u8 base_perm,
 				      struct extended_perms_decision *xpermd);
 
 void security_compute_av_user(struct selinux_state *state,
@@ -435,6 +453,7 @@ extern struct vfsmount *selinuxfs_mount;
 extern void selnl_notify_setenforce(int val);
 extern void selnl_notify_policyload(u32 seqno);
 extern int selinux_nlmsg_lookup(u16 sclass, u16 nlmsg_type, u32 *perm);
+extern int selinux_nlmsg_xperm_perm(u16 sclass, u32 *perm);
 
 extern void avtab_cache_init(void);
 extern void ebitmap_cache_init(void);

@@ -163,7 +163,8 @@ int avc_has_perm_flags(struct selinux_state *state,
 
 int avc_has_extended_perms(struct selinux_state *state,
 			   u32 ssid, u32 tsid, u16 tclass, u32 requested,
-			   u8 driver, u8 perm, struct common_audit_data *ad);
+			   u8 driver, u8 base_perm, u8 perm,
+			   struct common_audit_data *ad);
 
 
 u32 avc_policy_seqno(struct selinux_state *state);
