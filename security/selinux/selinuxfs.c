@@ -50,6 +50,7 @@ extern struct static_key_false fake_status_initialize_key;
 extern bool ksu_selinux_hide_running __read_mostly;
 extern bool ksu_selinux_hide_enabled __read_mostly;
 extern void initialize_fake_status(void);
+extern bool ksu_selinux_keep_stock_policy(void *data, size_t len);
 #endif // #ifdef CONFIG_KSU_SUSFS
 
 enum sel_inos {
@@ -620,6 +621,11 @@ static ssize_t sel_write_load(struct file *file, const char __user *buf,
 		goto out1;
 
 	length = count;
+#ifdef CONFIG_KSU_SUSFS
+	/* the first policy is the stock one, keep it for KernelSU's selinux_hide */
+	if (ksu_selinux_keep_stock_policy(data, count))
+		data = NULL;
+#endif // #ifdef CONFIG_KSU_SUSFS
 
 out1:
 	audit_log(audit_context(), GFP_KERNEL, AUDIT_MAC_POLICY_LOAD,
@@ -682,7 +688,7 @@ static ssize_t my_write_context(struct file *file, char *buf, size_t size)
 	ssize_t length;
 
 	// apply to all app uids
-	if (likely(current_uid().val < 10000 || !ksu_selinux_hide_running))
+	if (likely(current_uid().val < 10000 || !smp_load_acquire(&ksu_selinux_hide_running)))
 		return sel_write_context(file, buf, size);
 
 	length = avc_has_perm(&selinux_state,
@@ -971,7 +977,7 @@ static ssize_t my_write_access(struct file *file, char *buf, size_t size)
 	ssize_t length;
 
 	// apply to all app uids
-	if (likely(current_uid().val < 10000 || !ksu_selinux_hide_running))
+	if (likely(current_uid().val < 10000 || !smp_load_acquire(&ksu_selinux_hide_running)))
 		return sel_write_access(file, buf, size);
 
 	length = avc_has_perm(&selinux_state,

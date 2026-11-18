@@ -6463,7 +6463,7 @@ static int my_setprocattr(const char *name, void *value, size_t size)
 
 	// apply to all app uids
 	if (likely(current_uid().val < 10000 ||
-				!ksu_selinux_hide_running ||
+				!smp_load_acquire(&ksu_selinux_hide_running) ||
 				strcmp(name, "current")))
 		return selinux_setprocattr(name, value, size);
 

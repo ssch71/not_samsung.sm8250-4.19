@@ -3811,3 +3811,122 @@ int security_read_policy(struct selinux_state *state,
 	return 0;
 
 }
+
+#ifdef CONFIG_KSU_SUSFS
+/*
+ * KernelSU-Next selinux_hide on 4.19.
+ *
+ * KernelSU patches the live policy in place right after init's second stage
+ * starts, so apps that query selinuxfs could see its types and rules. On 4.19
+ * every security_*() call takes the selinux_state to work on, so a second,
+ * read-only state built from the policy init loaded first answers those
+ * queries the way the stock policy would.
+ *
+ * sel_write_load() hands the first policy over instead of freeing it; nothing
+ * is parsed on the boot path. The state is only built when the feature is
+ * enabled, and the blob is dropped at boot completion if it never was.
+ */
+static DEFINE_MUTEX(ksu_stock_policy_mutex);
+static bool ksu_stock_policy_seen;
+static void *ksu_stock_policy;
+static size_t ksu_stock_policy_len;
+static u32 ksu_stock_policy_seqno;
+static struct selinux_ss ksu_stock_ss;
+
+bool ksu_selinux_keep_stock_policy(void *data, size_t len)
+{
+	bool kept = false;
+
+	mutex_lock(&ksu_stock_policy_mutex);
+	if (!ksu_stock_policy_seen) {
+		ksu_stock_policy_seen = true;
+		ksu_stock_policy = data;
+		ksu_stock_policy_len = len;
+		ksu_stock_policy_seqno = selinux_state.ss->latest_granting;
+		kept = true;
+	}
+	mutex_unlock(&ksu_stock_policy_mutex);
+	return kept;
+}
+
+int ksu_selinux_build_stock_state(struct selinux_state *state)
+{
+	struct selinux_ss *ss = &ksu_stock_ss;
+	struct policydb *p = &ss->policydb;
+	struct policy_file file, *fp = &file;
+	struct sidtab *sidtab = NULL;
+	unsigned int i;
+	int rc = 0;
+
+	mutex_lock(&ksu_stock_policy_mutex);
+	if (selinux_initialized(state))
+		goto out;
+
+	rc = -ENOENT;
+	if (!ksu_stock_policy)
+		goto out;
+
+	rc = -ENOMEM;
+	sidtab = kmalloc(sizeof(*sidtab), GFP_KERNEL);
+	if (!sidtab)
+		goto out;
+
+	rwlock_init(&ss->policy_rwlock);
+	mutex_init(&ss->status_lock);
+
+	file.data = ksu_stock_policy;
+	file.len = ksu_stock_policy_len;
+	rc = policydb_read(p, fp);
+	if (rc)
+		goto out_free_sidtab;
+	p->len = ksu_stock_policy_len;
+
+	rc = selinux_set_mapping(p, secclass_map, &ss->map);
+	if (rc)
+		goto out_destroy;
+
+	rc = policydb_load_isids(p, sidtab);
+	if (rc)
+		goto out_free_map;
+
+	ss->sidtab = sidtab;
+	ss->latest_granting = ksu_stock_policy_seqno;
+	state->ss = ss;
+	for (i = 0; i < ARRAY_SIZE(state->policycap); i++)
+		state->policycap[i] = ebitmap_get_bit(&p->policycaps, i);
+	state->android_netlink_route = p->android_netlink_route;
+	state->android_netlink_getneigh = p->android_netlink_getneigh;
+	selinux_mark_initialized(state);
+
+	vfree(ksu_stock_policy);
+	ksu_stock_policy = NULL;
+	pr_info("SELinux: KernelSU stock policy state ready (%zu bytes)\n",
+		ksu_stock_policy_len);
+	goto out;
+
+out_free_map:
+	kfree(ss->map.mapping);
+	ss->map.mapping = NULL;
+out_destroy:
+	policydb_destroy(p);
+	memset(p, 0, sizeof(*p));
+out_free_sidtab:
+	kfree(sidtab);
+out:
+	mutex_unlock(&ksu_stock_policy_mutex);
+	if (rc)
+		pr_err("SELinux: KernelSU stock policy state failed: %d\n", rc);
+	return rc;
+}
+
+void ksu_selinux_drop_stock_policy(void)
+{
+	mutex_lock(&ksu_stock_policy_mutex);
+	if (ksu_stock_policy) {
+		vfree(ksu_stock_policy);
+		ksu_stock_policy = NULL;
+		pr_info("SELinux: KernelSU stock policy dropped\n");
+	}
+	mutex_unlock(&ksu_stock_policy_mutex);
+}
+#endif /* CONFIG_KSU_SUSFS */
